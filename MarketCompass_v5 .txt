@@ -1,0 +1,1220 @@
+//+------------------------------------------------------------------+
+//|                                          MarketCompass_v5.mq5    |
+//|                     Copyright 2024, Market Compass Trading v5.2  |
+//|                       Professional Multi-Asset Trading System    |
+//+------------------------------------------------------------------+
+#property copyright "Copyright 2024, Market Compass Trading"
+#property link      "https://marketcompass.trading"
+#property version   "5.20"
+#property description "Fixed version with proper BTC settings and win rate improvement"
+#property strict
+
+//+------------------------------------------------------------------+
+//|                            INCLUDES                              |
+//+------------------------------------------------------------------+
+#include "MC5_Core.mqh"
+#include "MC5_Utils.mqh"
+#include "MC5_Managers.mqh"
+#include "MC5_Analysis.mqh"
+#include "MC5_Strategies.mqh"
+#include "MC5_GUI.mqh"
+
+//+------------------------------------------------------------------+
+//|                      PARAMETRY WEJŚCIOWE - FIXED                |
+//+------------------------------------------------------------------+
+input group "═══════════════ USTAWIENIA GŁÓWNE ═══════════════"
+input ENUM_TRADING_MODE    InpTradingMode = MODE_STANDARD;        // 🎯 Tryb Tradingu
+input ENUM_LANGUAGE        InpLanguage = LANG_POLISH;             // 🌍 Język / Language
+input bool                 InpAutoTrading = true;                 // 🤖 Auto-Trading
+input ulong                InpMagicNumber = 500001;               // 🔢 Magic Number
+input string               InpComment = "MC_v5";                  // 💬 Komentarz
+
+input group "═══════════════ ZARZĄDZANIE RYZYKIEM ═══════════════"
+input double               InpRiskPerTrade = 1.0;                 // 💰 Ryzyko na transakcję (%)
+input double               InpMaxDailyLoss = 5.0;                 // 📉 Max dzienna strata (%) - 0 = wyłączone
+input double               InpMaxTotalDrawdown = 20.0;            // 📊 Max całkowity drawdown (%)
+input int                  InpMaxPositions = 10;                  // 📈 Max otwartych pozycji (zmniejszone z 20!)
+input bool                 InpUseMoneyManagement = true;          // 💼 Zarządzanie kapitałem
+input bool                 InpAllowHedging = false;               // 🔄 Zezwól na hedging
+
+input group "═══════════════ STRATEGIA - POPRAWIONE ═══════════════"
+input ENUM_STRATEGY_TYPE   InpDefaultStrategy = STRATEGY_ADAPTIVE; // 🎲 Domyślna strategia
+input int                  InpMinSignalScore = 70;                // 📊 Min siła sygnału (zwiększone z 58!)
+input double               InpMinRiskReward = 2.0;                // 📈 Min Risk:Reward (zwiększone z 1.2!)
+input bool                 InpUseMultiTimeframe = true;           // 🕐 Analiza Multi-TF
+input bool                 InpUseVolumeAnalysis = true;           // 📊 Analiza wolumenu
+
+input group "═══════════════ INTERFACE & POWIADOMIENIA ═══════════════"
+input bool                 InpShowDashboard = true;               // 📱 Pokaż Dashboard
+input bool                 InpEnableGUI = true;                   // 🖥️ Włącz GUI
+input bool                 InpShowAlerts = false;                 // 🔔 Alerty dźwiękowe
+input bool                 InpSendNotifications = false;          // 📲 Powiadomienia Push
+
+input group "═══════════════ DIAGNOSTYKA I DEBUG ═══════════════"
+input ENUM_DEBUG_LEVEL     InpDebugLevel = DEBUG_NORMAL;          // 🔍 Poziom debugowania
+input bool                 InpLogToFile = true;                   // 📝 Zapisz logi do pliku
+input bool                 InpEnableLogging = true;               // 📊 Włącz logowanie
+input int                  InpLogFrequency = 1000;                // 📈 Częstotliwość logowania
+
+//+------------------------------------------------------------------+
+//|                          ZMIENNE GLOBALNE                        |
+//+------------------------------------------------------------------+
+// Managers
+CDiagnostics*      g_diagnostics = NULL;
+CDataManager*      g_dataManager = NULL;
+CRiskManager*      g_riskManager = NULL;
+CSignalManager*    g_signalManager = NULL;
+CPositionManager*  g_positionManager = NULL;
+CMarketAnalyzer*   g_marketAnalyzer = NULL;
+CDashboard*        g_dashboard = NULL;
+
+// Strategies
+CBaseStrategy*     g_activeStrategy = NULL;
+
+// System state
+SystemState        g_systemState;
+MarketConditions   g_marketConditions;
+PerformanceStats   g_performance;
+
+// Cache dla optymalizacji
+struct SystemCache {
+    ENUM_INSTRUMENT_TYPE instrumentType;
+    datetime lastInstrumentCheck;
+    double lastSpread;
+    datetime lastSpreadCheck;
+    bool isCryptoMode;
+    bool isBTCMode;
+    double lastATR;
+    datetime lastATRCheck;
+};
+SystemCache g_cache;
+
+// POPRAWIONE: Signal management dla BTC
+struct SignalManagement {
+    datetime lastSignalCheck;
+    datetime lastValidSignal;
+    int signalCheckInterval;
+    int signalsGeneratedThisBar;
+    int maxSignalsPerBar;
+    bool signalPending;
+    datetime sessionStart;
+    int sessionSignalsGenerated;
+    int sessionSignalsExecuted;
+    // NOWE: Kontrola kierunku
+    int consecutiveBuySignals;
+    int consecutiveSellSignals;
+    datetime lastBuyTrade;
+    datetime lastSellTrade;
+};
+SignalManagement g_signalMgmt;
+
+// Flagi
+bool               g_isCryptoMode = false;
+bool               g_isBTCMode = false;
+
+// Konfiguracja instrumentu
+InstrumentConfig   g_instrumentConfig;
+
+// Throttling
+datetime g_lastDashboardUpdate = 0;
+datetime g_lastMarketAnalysis = 0;
+datetime g_lastRiskCheck = 0;
+
+//+------------------------------------------------------------------+
+//|                    FUNKCJA INICJALIZACJI - FIXED                |
+//+------------------------------------------------------------------+
+int OnInit() {
+    if(g_systemState.isInitialized) {
+        CleanupAll();
+    }
+    
+    if(InpAllowHedging) {
+        bool hedgingAllowed = (bool)AccountInfoInteger(ACCOUNT_HEDGE_ALLOWED);
+        if(!hedgingAllowed) {
+            Print("⚠️ WARNING: Broker does not support hedging! Disabling hedging mode.");
+        }
+    }
+    
+    // Inicjalizacja diagnostyki
+    if(InpEnableLogging) {
+        if(g_diagnostics == NULL) {
+            g_diagnostics = new CDiagnostics(InpDebugLevel, InpLogToFile);
+        }
+        g_diagnostics.StartSession();
+        
+        g_diagnostics.Log(DEBUG_CRITICAL, "SYSTEM", "═══════════════════════════════════════════════════");
+        g_diagnostics.Log(DEBUG_CRITICAL, "SYSTEM", "    MARKET COMPASS v5.2 - FIXED VERSION");
+        g_diagnostics.Log(DEBUG_CRITICAL, "SYSTEM", "═══════════════════════════════════════════════════");
+    }
+    
+    // Inicjalizacja zmiennych
+    InitializeGlobalVariables();
+    InitializeSignalManagement();
+    InitializeCache();
+    
+    LoadPersistentData();
+    
+    if(!CheckInitialConditions()) {
+        if(InpEnableLogging && g_diagnostics != NULL) {
+            g_diagnostics.Log(DEBUG_CRITICAL, "INIT", "❌ Warunki początkowe nie spełnione!");
+        }
+        return INIT_FAILED;
+    }
+    
+    // POPRAWIONE: Wykryj i skonfiguruj instrument
+    DetectAndConfigureInstrumentFixed();
+    
+    if(!InitializeManagersSafe()) {
+        if(InpEnableLogging && g_diagnostics != NULL) {
+            g_diagnostics.Log(DEBUG_CRITICAL, "INIT", "❌ Błąd inicjalizacji managerów!");
+        }
+        CleanupManagers();
+        return INIT_FAILED;
+    }
+    
+    if(g_signalManager != NULL) {
+        g_signalManager.SetHedgingMode(InpAllowHedging);
+    }
+    
+    if(!InitializeStrategies()) {
+        if(InpEnableLogging && g_diagnostics != NULL) {
+            g_diagnostics.Log(DEBUG_CRITICAL, "INIT", "❌ Błąd inicjalizacji strategii!");
+        }
+        CleanupAll();
+        return INIT_FAILED;
+    }
+    
+    if(InpShowDashboard && InpEnableGUI) {
+        if(g_dashboard == NULL) {
+            g_dashboard = new CDashboard(InpLanguage);
+        }
+        if(!g_dashboard.Initialize()) {
+            if(InpEnableLogging && g_diagnostics != NULL) {
+                g_diagnostics.Log(DEBUG_NORMAL, "GUI", "⚠️ Dashboard nie został zainicjalizowany");
+            }
+        }
+    }
+    
+    g_systemState.isActive = true;
+    g_systemState.isInitialized = true;
+    g_systemState.startTime = TimeCurrent();
+    g_systemState.lastUpdateTime = TimeCurrent();
+    
+    RefreshAllData();
+    
+    // POPRAWIONE: Timer dla BTC
+    int timerInterval = g_isBTCMode ? 3 : 2;  // Wolniejszy timer dla BTC
+    EventSetTimer(timerInterval);
+    
+    if(InpEnableLogging && g_diagnostics != NULL) {
+        g_diagnostics.Log(DEBUG_CRITICAL, "SYSTEM", "✅ SYSTEM GOTOWY DO PRACY!");
+        g_diagnostics.Log(DEBUG_CRITICAL, "SYSTEM", 
+            StringFormat("Max pozycji: %d, Min score: %d, Min R:R: %.2f, Hedging: %s", 
+                InpMaxPositions, InpMinSignalScore, InpMinRiskReward,
+                InpAllowHedging ? "ON" : "OFF"));
+    }
+    ShowInitializationReport();
+    
+    return INIT_SUCCEEDED;
+}
+
+//+------------------------------------------------------------------+
+//|                 POPRAWIONE FUNKCJE                              |
+//+------------------------------------------------------------------+
+
+// POPRAWIONA: Inicjalizacja signal management
+void InitializeSignalManagement() {
+    if(g_signalMgmt.sessionStart == 0 || 
+       TimeCurrent() - g_signalMgmt.sessionStart > 86400) {
+        g_signalMgmt.sessionStart = TimeCurrent();
+        g_signalMgmt.sessionSignalsGenerated = 0;
+        g_signalMgmt.sessionSignalsExecuted = 0;
+    }
+    
+    g_signalsGenerated = g_signalMgmt.sessionSignalsGenerated;
+    g_signalsExecuted = g_signalMgmt.sessionSignalsExecuted;
+    
+    g_signalMgmt.lastSignalCheck = 0;
+    g_signalMgmt.lastValidSignal = 0;
+    g_signalMgmt.signalCheckInterval = 120;  // ZWIĘKSZONE z 45 na 120 sekund!
+    g_signalMgmt.signalsGeneratedThisBar = 0;
+    g_signalMgmt.maxSignalsPerBar = 2;       // ZMNIEJSZONE z 3 na 2!
+    g_signalMgmt.signalPending = false;
+    
+    // NOWE: Reset kierunków
+    g_signalMgmt.consecutiveBuySignals = 0;
+    g_signalMgmt.consecutiveSellSignals = 0;
+    g_signalMgmt.lastBuyTrade = 0;
+    g_signalMgmt.lastSellTrade = 0;
+    
+    if(TimeCurrent() - g_signalMgmt.sessionStart < 60) {
+        g_performance.Reset();
+    }
+}
+
+// POPRAWIONA: Konfiguracja dla BTC
+void DetectAndConfigureInstrumentFixed() {
+    ENUM_INSTRUMENT_TYPE instrumentType = DetectInstrumentType(_Symbol);
+    string symbolUpper = _Symbol;
+    StringToUpper(symbolUpper);
+    
+    if(StringFind(symbolUpper, "XAUUSD") >= 0 || StringFind(symbolUpper, "GOLD") >= 0) {
+        instrumentType = INSTRUMENT_METAL;
+        DEBUG_MSG(DEBUG_CRITICAL, "INIT", "🥇 GOLD DETECTED - Metal mode activated");
+    }
+    
+    g_isCryptoMode = (instrumentType == INSTRUMENT_CRYPTO);
+    g_isBTCMode = (StringFind(symbolUpper, "BTC") >= 0 || StringFind(symbolUpper, "BITCOIN") >= 0);
+    
+    g_cache.instrumentType = instrumentType;
+    g_cache.isCryptoMode = g_isCryptoMode;
+    g_cache.isBTCMode = g_isBTCMode;
+    g_cache.lastInstrumentCheck = TimeCurrent();
+    
+    // POPRAWIONE PARAMETRY DLA BTC
+    if(g_isBTCMode) {
+        if(InpEnableLogging && g_diagnostics != NULL) {
+            g_diagnostics.Log(DEBUG_CRITICAL, "INIT", "⚡ BTC MODE - OPTIMIZED SETTINGS v2");
+        }
+        
+        // KLUCZOWE ZMIANY DLA BTC
+        g_signalMgmt.signalCheckInterval = 180;  // 3 minuty między sprawdzeniami
+        g_signalMgmt.maxSignalsPerBar = 1;       // Max 1 sygnał na bar
+        
+        if(g_signalManager != NULL) {
+            g_signalManager.SetMinSignalScore(75);   // Wyższy próg (było 58)
+            g_signalManager.SetMinRiskReward(2.0);   // Wyższe R:R (było 1.2)
+            g_signalManager.SetSignalCooldown(300);  // 5 minut cooldown
+        }
+    }
+    else if(g_isCryptoMode) {
+        if(InpEnableLogging && g_diagnostics != NULL) {
+            g_diagnostics.Log(DEBUG_CRITICAL, "INIT", "₿ CRYPTO MODE - Moderate frequency");
+        }
+        
+        g_signalMgmt.signalCheckInterval = 120;
+        g_signalMgmt.maxSignalsPerBar = 2;
+        
+        if(g_signalManager != NULL) {
+            g_signalManager.SetMinSignalScore(70);
+            g_signalManager.SetMinRiskReward(1.8);
+            g_signalManager.SetSignalCooldown(180);
+        }
+    }
+    else if(instrumentType == INSTRUMENT_METAL) {
+        if(InpEnableLogging && g_diagnostics != NULL) {
+            g_diagnostics.Log(DEBUG_CRITICAL, "INIT", "🥇 METAL MODE - Conservative");
+        }
+        
+        g_signalMgmt.signalCheckInterval = 90;
+        g_signalMgmt.maxSignalsPerBar = 2;
+        
+        if(g_signalManager != NULL) {
+            g_signalManager.SetMinSignalScore(65);
+            g_signalManager.SetMinRiskReward(1.5);
+            g_signalManager.SetSignalCooldown(120);
+        }
+    }
+    else {
+        if(InpEnableLogging && g_diagnostics != NULL) {
+            g_diagnostics.Log(DEBUG_CRITICAL, "INIT", "💱 FOREX MODE - Standard");
+        }
+        
+        g_signalMgmt.signalCheckInterval = 120;
+        g_signalMgmt.maxSignalsPerBar = 3;
+        
+        if(g_signalManager != NULL) {
+            g_signalManager.SetMinSignalScore(InpMinSignalScore);
+            g_signalManager.SetMinRiskReward(InpMinRiskReward);
+            g_signalManager.SetSignalCooldown(150);
+        }
+    }
+}
+
+// POPRAWIONA: Sprawdzanie sygnałów z filtrem kierunku
+bool ShouldCheckSignals() {
+    if(!CanOpenNewPosition()) {
+        return false;
+    }
+    
+    datetime currentTime = TimeCurrent();
+    int timeSinceLastCheck = (int)(currentTime - g_signalMgmt.lastSignalCheck);
+    
+    // POPRAWIONE: Dłuższy interwał dla BTC
+    int requiredInterval = g_signalMgmt.signalCheckInterval;
+    if(g_isBTCMode) {
+        requiredInterval = MathMax(180, requiredInterval);  // Min 3 minuty dla BTC
+    }
+    
+    if(timeSinceLastCheck < requiredInterval) {
+        return false;
+    }
+    
+    // Sprawdź limit sygnałów na bar
+    static datetime lastBarTime = 0;
+    datetime currentBarTime = iTime(_Symbol, PERIOD_M15, 0);
+    
+    if(currentBarTime != lastBarTime) {
+        lastBarTime = currentBarTime;
+        g_signalMgmt.signalsGeneratedThisBar = 0;
+    }
+    
+    if(g_signalMgmt.signalsGeneratedThisBar >= g_signalMgmt.maxSignalsPerBar) {
+        return false;
+    }
+    
+    // NOWE: Sprawdź balans kierunków
+    if(g_signalMgmt.consecutiveSellSignals > 3) {
+        DEBUG_MSG(DEBUG_NORMAL, "SIGNAL", "Too many consecutive SELL signals - waiting for BUY");
+        return false;
+    }
+    
+    if(g_signalMgmt.consecutiveBuySignals > 3) {
+        DEBUG_MSG(DEBUG_NORMAL, "SIGNAL", "Too many consecutive BUY signals - waiting for SELL");
+        return false;
+    }
+    
+    return true;
+}
+
+// POPRAWIONA: Sprawdzanie sygnałów z lepszą walidacją
+void CheckForSignals() {
+    if(g_signalManager == NULL || g_activeStrategy == NULL) return;
+    
+    g_signalMgmt.lastSignalCheck = TimeCurrent();
+    
+    TradeSignal signal = g_activeStrategy.CheckSignal();
+    
+    if(signal.isValid) {
+        // NOWE: Aktualizuj liczniki kierunków
+        if(signal.direction == SIGNAL_BUY) {
+            g_signalMgmt.consecutiveBuySignals++;
+            g_signalMgmt.consecutiveSellSignals = 0;
+        } else {
+            g_signalMgmt.consecutiveSellSignals++;
+            g_signalMgmt.consecutiveBuySignals = 0;
+        }
+        
+        g_signalMgmt.sessionSignalsGenerated++;
+        g_signalsGenerated = g_signalMgmt.sessionSignalsGenerated;
+        g_signalMgmt.signalsGeneratedThisBar++;
+        g_performance.totalSignals++;
+        
+        // POPRAWIONE: Dodatkowa walidacja dla BTC
+        if(g_isBTCMode) {
+            // Sprawdź czy R:R jest wystarczające
+            if(signal.riskRewardRatio < 2.0) {
+                DEBUG_MSG(DEBUG_NORMAL, "SIGNAL", 
+                    StringFormat("❌ BTC Mode: R:R too low: %.2f < 2.0", signal.riskRewardRatio));
+                return;
+            }
+            
+            // Sprawdź siłę sygnału
+            if(signal.strength < 75) {
+                DEBUG_MSG(DEBUG_NORMAL, "SIGNAL", 
+                    StringFormat("❌ BTC Mode: Signal too weak: %d < 75", signal.strength));
+                return;
+            }
+        }
+        
+        if(InpEnableLogging && g_diagnostics != NULL) {
+            g_diagnostics.Log(DEBUG_CRITICAL, "SIGNAL", 
+                StringFormat("📊 NOWY SYGNAŁ #%d: %s | Siła: %d | R:R: %.2f | %s",
+                    g_signalsGenerated,
+                    signal.direction == SIGNAL_BUY ? "BUY" : "SELL",
+                    signal.strength,
+                    signal.riskRewardRatio,
+                    signal.reason));
+        }
+        
+        if(g_signalManager.ValidateSignal(signal)) {
+            g_signalMgmt.lastValidSignal = TimeCurrent();
+            ExecuteTrade(signal);
+        } else {
+            if(InpEnableLogging && g_diagnostics != NULL) {
+                g_diagnostics.Log(DEBUG_NORMAL, "SIGNAL", 
+                    StringFormat("❌ Sygnał #%d nie przeszedł walidacji", g_signalsGenerated));
+            }
+        }
+    }
+}
+
+// POPRAWIONA: Obliczanie wielkości pozycji dla BTC
+double CalculatePositionSize(double stopLossDistance) {
+    if(stopLossDistance <= 0) {
+        DEBUG_MSG(DEBUG_NORMAL, "RISK", "Invalid stop loss distance");
+        return 0;
+    }
+    
+    if(g_riskManager != NULL) {
+        return g_riskManager.CalculatePositionSize(stopLossDistance);
+    }
+    
+    double accountBalance = AccountInfoDouble(ACCOUNT_BALANCE);
+    double riskAmount = accountBalance * (InpRiskPerTrade / 100);
+    
+    // POPRAWIONE: Dla BTC - mniejsze pozycje
+    if(g_isBTCMode) {
+        riskAmount *= 0.5;  // Zmniejsz ryzyko o 50% dla BTC
+    }
+    
+    ENUM_INSTRUMENT_TYPE instrumentType = g_cache.instrumentType;
+    if(instrumentType == INSTRUMENT_UNKNOWN) {
+        instrumentType = DetectInstrumentType(_Symbol);
+    }
+    
+    double lotSize = 0;
+    
+    if(instrumentType == INSTRUMENT_CRYPTO) {
+        double contractSize = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_CONTRACT_SIZE);
+        double tickValue = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
+        double tickSize = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
+        
+        if(contractSize > 0 && tickValue > 0 && tickSize > 0) {
+            lotSize = (riskAmount * tickSize) / (stopLossDistance * tickValue);
+        }
+    } else {
+        double tickValue = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE);
+        double tickSize = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
+        
+        if(tickValue > 0 && tickSize > 0) {
+            double stopLossPoints = stopLossDistance / _Point;
+            double pointValue = tickValue * _Point / tickSize;
+            
+            if(pointValue > 0 && stopLossPoints > 0) {
+                lotSize = riskAmount / (stopLossPoints * pointValue);
+            }
+        }
+    }
+    
+    // POPRAWIONE: Limity dla BTC
+    if(g_isBTCMode) {
+        lotSize = MathMax(0.01, MathMin(0.5, lotSize));  // Max 0.5 lota dla BTC
+    } else if(accountBalance >= 10000) {
+        lotSize = MathMax(0.1, MathMin(2.0, lotSize));
+    } else if(accountBalance >= 5000) {
+        lotSize = MathMax(0.05, MathMin(1.0, lotSize));
+    } else if(accountBalance >= 2000) {
+        lotSize = MathMax(0.02, MathMin(0.5, lotSize));
+    } else if(accountBalance >= 1000) {
+        lotSize = MathMax(0.01, MathMin(0.2, lotSize));
+    } else {
+        lotSize = MathMax(0.01, MathMin(0.1, lotSize));
+    }
+    
+    return NormalizeLot(lotSize);
+}
+
+// RESZTA FUNKCJI BEZ ZMIAN...
+void OnDeinit(const int reason) {
+    EventKillTimer();
+    
+    if(InpEnableLogging && g_diagnostics != NULL) {
+        g_diagnostics.Log(DEBUG_CRITICAL, "SYSTEM", "═══════════════════════════════════════════════════");
+        g_diagnostics.Log(DEBUG_CRITICAL, "SYSTEM", "    ZAMYKANIE SYSTEMU");
+        g_diagnostics.Log(DEBUG_CRITICAL, "SYSTEM", "═══════════════════════════════════════════════════");
+    }
+    
+    SaveFinalReport();
+    SavePersistentData();
+    CleanupAll();
+    
+    string reasonText = GetDeInitReasonText(reason);
+    if(InpEnableLogging && g_diagnostics != NULL) {
+        g_diagnostics.Log(DEBUG_CRITICAL, "SYSTEM", "Powód zamknięcia: " + reasonText);
+    }
+    
+    Comment("");
+    ChartRedraw();
+}
+
+void OnTick() {
+    if(!g_systemState.isActive || !g_systemState.isInitialized) {
+        return;
+    }
+    
+    g_totalTicks++;
+    g_systemState.ticksProcessed++;
+    
+    if(InpEnableLogging && (g_totalTicks % InpLogFrequency == 0) && g_diagnostics != NULL) {
+        g_diagnostics.Log(DEBUG_VERBOSE, "TICK", "Tick #" + IntegerToString(g_totalTicks));
+    }
+    
+    if(!RefreshMarketData()) {
+        if(InpEnableLogging && g_totalTicks % 10 == 0 && g_diagnostics != NULL) {
+            g_diagnostics.Log(DEBUG_NORMAL, "DATA", "⚠️ Nie można odświeżyć danych rynkowych");
+        }
+        return;
+    }
+    
+    CheckNewBars();
+    
+    if(TimeCurrent() - g_lastMarketAnalysis >= 3) {
+        UpdateMarketAnalysis();
+        g_lastMarketAnalysis = TimeCurrent();
+    }
+    
+    if(TimeCurrent() - g_lastRiskCheck >= 2) {
+        if(!CheckRiskConditions()) {
+            if(InpEnableLogging && g_diagnostics != NULL) {
+                g_diagnostics.Log(DEBUG_NORMAL, "RISK", "🛑 Warunki ryzyka nie pozwalają na handel");
+            }
+            g_lastRiskCheck = TimeCurrent();
+            return;
+        }
+        g_lastRiskCheck = TimeCurrent();
+    }
+    
+    ManageOpenPositions();
+    
+    if(ShouldCheckSignals()) {
+        CheckForSignals();
+    }
+    
+    if(InpEnableGUI && TimeCurrent() - g_lastDashboardUpdate >= 1) {
+        UpdateDashboard();
+        g_lastDashboardUpdate = TimeCurrent();
+    }
+    
+    static datetime lastCommentClear = 0;
+    if(TimeCurrent() - lastCommentClear >= 10) {
+        Comment("");
+        lastCommentClear = TimeCurrent();
+    }
+}
+
+void OnTimer() {
+    if(InpEnableGUI && g_dashboard != NULL) {
+        g_dashboard.Update();
+    }
+    
+    static datetime lastSystemCheck = 0;
+    if(TimeCurrent() - lastSystemCheck >= 10) {
+        CheckSystemHealth();
+        AdaptToMarketConditions();
+        CleanupCache();
+        lastSystemCheck = TimeCurrent();
+    }
+    
+    static datetime lastStateSave = 0;
+    if(TimeCurrent() - lastStateSave >= 60) {
+        SaveSystemState();
+        SavePersistentData();
+        lastStateSave = TimeCurrent();
+    }
+    
+    static datetime lastMemoryOptimization = 0;
+    if(TimeCurrent() - lastMemoryOptimization >= 300) {
+        OptimizeMemory();
+        lastMemoryOptimization = TimeCurrent();
+    }
+}
+
+void OnChartEvent(const int id,
+                  const long &lparam,
+                  const double &dparam,
+                  const string &sparam) {
+    
+    if(id == CHARTEVENT_OBJECT_CLICK) {
+        string clickedObject = sparam;
+        
+        if(StringFind(clickedObject, PREFIX_PANEL) == 0) {
+            HandleGUIButtonClick(clickedObject);
+        }
+    }
+    
+    if(id == CHARTEVENT_KEYDOWN) {
+        int key = (int)lparam;
+        HandleKeyPress(key);
+    }
+}
+
+// POZOSTAŁE FUNKCJE POMOCNICZE...
+
+void InitializeCache() {
+    g_cache.instrumentType = INSTRUMENT_UNKNOWN;
+    g_cache.lastInstrumentCheck = 0;
+    g_cache.lastSpread = 0;
+    g_cache.lastSpreadCheck = 0;
+    g_cache.isCryptoMode = false;
+    g_cache.isBTCMode = false;
+    g_cache.lastATR = 0;
+    g_cache.lastATRCheck = 0;
+}
+
+bool InitializeManagersSafe() {
+    if(InpEnableLogging && g_diagnostics != NULL) {
+        g_diagnostics.Log(DEBUG_NORMAL, "INIT", "Inicjalizacja managerów (bezpieczna)...");
+    }
+    
+    if(g_dataManager == NULL) {
+        g_dataManager = new CDataManager();
+        if(!g_dataManager.Initialize()) {
+            if(InpEnableLogging && g_diagnostics != NULL) {
+                g_diagnostics.Log(DEBUG_CRITICAL, "INIT", "❌ Błąd inicjalizacji DataManager");
+            }
+            return false;
+        }
+    }
+    
+    if(g_riskManager == NULL) {
+        double maxDailyLoss = InpMaxDailyLoss > 0 ? InpMaxDailyLoss : 999999;
+        g_riskManager = new CRiskManager(InpRiskPerTrade, maxDailyLoss, InpMaxTotalDrawdown);
+        if(!g_riskManager.Initialize()) {
+            if(InpEnableLogging && g_diagnostics != NULL) {
+                g_diagnostics.Log(DEBUG_CRITICAL, "INIT", "❌ Błąd inicjalizacji RiskManager");
+            }
+            return false;
+        }
+    }
+    
+    if(g_marketAnalyzer == NULL) {
+        g_marketAnalyzer = new CMarketAnalyzer();
+        if(!g_marketAnalyzer.Initialize()) {
+            if(InpEnableLogging && g_diagnostics != NULL) {
+                g_diagnostics.Log(DEBUG_CRITICAL, "INIT", "❌ Błąd inicjalizacji MarketAnalyzer");
+            }
+            return false;
+        }
+    }
+    
+    if(g_signalManager == NULL) {
+        g_signalManager = new CSignalManager(InpMinSignalScore, InpMinRiskReward);
+        g_signalManager.SetHedgingMode(InpAllowHedging);
+        if(!g_signalManager.Initialize()) {
+            if(InpEnableLogging && g_diagnostics != NULL) {
+                g_diagnostics.Log(DEBUG_CRITICAL, "INIT", "❌ Błąd inicjalizacji SignalManager");
+            }
+            return false;
+        }
+    }
+    
+    if(g_positionManager == NULL) {
+        g_positionManager = new CPositionManager(InpMagicNumber, InpMaxPositions);
+        if(!g_positionManager.Initialize()) {
+            if(InpEnableLogging && g_diagnostics != NULL) {
+                g_diagnostics.Log(DEBUG_CRITICAL, "INIT", "❌ Błąd inicjalizacji PositionManager");
+            }
+            return false;
+        }
+        
+        // POPRAWIONE PARAMETRY DLA BTC
+        if(g_isBTCMode) {
+            g_positionManager.SetTrailingParams(
+                true,   // use trailing
+                0.4,    // activation - 40% ATR (zmniejszone)
+                0.25,   // distance - 25% ATR (zmniejszone)
+                0.05    // step - 5% ATR
+            );
+            
+            g_positionManager.SetBreakevenParams(
+                true,   // use breakeven
+                0.3,    // activation - 30% ATR (zmniejszone)
+                150     // offset w punktach (zwiększone dla bezpieczeństwa)
+            );
+        } else if(g_isCryptoMode) {
+            g_positionManager.SetTrailingParams(
+                true, 0.5, 0.3, 0.05
+            );
+            
+            g_positionManager.SetBreakevenParams(
+                true, 0.35, 80
+            );
+        } else {
+            g_positionManager.SetTrailingParams(
+                true, 0.5, 0.3, 0.05
+            );
+            
+            g_positionManager.SetBreakevenParams(
+                true, 0.3, 30
+            );
+        }
+        
+        g_positionManager.SetPartialCloseParams(
+            true,   // use partial
+            50,     // 50% close
+            0.6     // przy 60% TP (wcześniej)
+        );
+    }
+    
+    DetectAndConfigureInstrumentFixed();
+    
+    if(InpEnableLogging && g_diagnostics != NULL) {
+        g_diagnostics.Log(DEBUG_NORMAL, "INIT", "✅ Wszystkie managery zainicjalizowane bezpiecznie");
+    }
+    return true;
+}
+
+bool InitializeStrategies() {
+    DEBUG_MSG(DEBUG_NORMAL, "INIT", "Initializing strategies...");
+    
+    ENUM_INSTRUMENT_TYPE instrumentType = g_cache.instrumentType;
+    if(instrumentType == INSTRUMENT_UNKNOWN) {
+        instrumentType = DetectInstrumentType(_Symbol);
+    }
+    
+    switch(instrumentType) {
+        case INSTRUMENT_FOREX:
+            g_activeStrategy = new CForexStrategy();
+            DEBUG_MSG(DEBUG_NORMAL, "STRATEGY", "📈 Aktywna strategia: FOREX");
+            break;
+            
+        case INSTRUMENT_METAL:
+            g_activeStrategy = new CMetalStrategy();
+            DEBUG_MSG(DEBUG_NORMAL, "STRATEGY", "🥇 Aktywna strategia: METALS");
+            break;
+            
+        case INSTRUMENT_CRYPTO:
+            g_activeStrategy = new CCryptoStrategy();
+            DEBUG_MSG(DEBUG_NORMAL, "STRATEGY", "₿ Aktywna strategia: CRYPTO");
+            break;
+            
+        default:
+            g_activeStrategy = new CAdaptiveStrategy();
+            DEBUG_MSG(DEBUG_NORMAL, "STRATEGY", "📊 Domyślna strategia: ADAPTIVE");
+    }
+    
+    if(!g_activeStrategy.Initialize()) {
+        DEBUG_MSG(DEBUG_CRITICAL, "STRATEGY", "❌ Błąd inicjalizacji strategii");
+        return false;
+    }
+    
+    // POPRAWIONE: Ustaw wyższe progi dla BTC
+    if(g_isBTCMode) {
+        g_activeStrategy.SetMinScore(75);   // Wyższe
+        g_activeStrategy.SetMinRR(2.0);     // Wyższe
+    } else {
+        g_activeStrategy.SetMinScore(InpMinSignalScore);
+        g_activeStrategy.SetMinRR(InpMinRiskReward);
+    }
+    
+    return true;
+}
+
+// Pozostałe funkcje pomocnicze...
+
+void ExecuteTrade(TradeSignal& signal) {
+    if(g_positionManager == NULL) return;
+    
+    double lotSize = CalculatePositionSize(signal.stopLoss);
+    
+    if(lotSize <= 0) {
+        if(InpEnableLogging && g_diagnostics != NULL) {
+            g_diagnostics.Log(DEBUG_NORMAL, "TRADE", "❌ Nieprawidłowa wielkość pozycji");
+        }
+        return;
+    }
+    
+    signal.lotSize = lotSize;
+    
+    bool success = g_positionManager.OpenPosition(signal);
+    
+    if(success) {
+        g_signalMgmt.sessionSignalsExecuted++;
+        g_signalsExecuted = g_signalMgmt.sessionSignalsExecuted;
+        g_performance.executedSignals++;
+        
+        // Aktualizuj czasy ostatnich transakcji
+        if(signal.direction == SIGNAL_BUY) {
+            g_signalMgmt.lastBuyTrade = TimeCurrent();
+        } else {
+            g_signalMgmt.lastSellTrade = TimeCurrent();
+        }
+        
+        if(InpEnableLogging && g_diagnostics != NULL) {
+            g_diagnostics.Log(DEBUG_CRITICAL, "TRADE", 
+                StringFormat("✅ POZYCJA OTWARTA #%d: %s %.2f lots @ %.5f | SL: %.5f | TP: %.5f",
+                    g_signalsExecuted,
+                    signal.direction == SIGNAL_BUY ? "BUY" : "SELL",
+                    signal.lotSize,
+                    signal.entryPrice,
+                    signal.stopLoss,
+                    signal.takeProfit));
+        }
+        
+        if(InpShowAlerts) {
+            PlaySound("alert.wav");
+        }
+        
+        if(InpSendNotifications) {
+            SendNotification(StringFormat("MC5: %s %s @ %.5f",
+                signal.direction == SIGNAL_BUY ? "BUY" : "SELL",
+                _Symbol,
+                signal.entryPrice));
+        }
+    } else {
+        if(InpEnableLogging && g_diagnostics != NULL) {
+            g_diagnostics.Log(DEBUG_NORMAL, "TRADE", "❌ Nie udało się otworzyć pozycji");
+        }
+    }
+}
+
+bool CheckInitialConditions() {
+    if(InpEnableLogging && g_diagnostics != NULL) {
+        g_diagnostics.Log(DEBUG_NORMAL, "INIT", "Sprawdzanie warunków początkowych...");
+    }
+    
+    if(!TerminalInfoInteger(TERMINAL_CONNECTED)) {
+        if(InpEnableLogging && g_diagnostics != NULL) {
+            g_diagnostics.Log(DEBUG_CRITICAL, "INIT", "❌ Brak połączenia z serwerem!");
+        }
+        return false;
+    }
+    
+    if(!SymbolInfoInteger(_Symbol, SYMBOL_SELECT)) {
+        if(InpEnableLogging && g_diagnostics != NULL) {
+            g_diagnostics.Log(DEBUG_CRITICAL, "INIT", "❌ Symbol " + _Symbol + " nie jest dostępny!");
+        }
+        return false;
+    }
+    
+    double balance = AccountInfoDouble(ACCOUNT_BALANCE);
+    if(balance < 50) {
+        if(InpEnableLogging && g_diagnostics != NULL) {
+            g_diagnostics.Log(DEBUG_CRITICAL, "INIT", "❌ Za niski depozyt: " + DoubleToString(balance, 2));
+        }
+        return false;
+    }
+    
+    int bars = Bars(_Symbol, PERIOD_CURRENT);
+    if(bars < 50) {
+        if(InpEnableLogging && g_diagnostics != NULL) {
+            g_diagnostics.Log(DEBUG_CRITICAL, "INIT", "❌ Za mało danych historycznych: " + IntegerToString(bars));
+        }
+        return false;
+    }
+    
+    if(InpEnableLogging && g_diagnostics != NULL) {
+        g_diagnostics.Log(DEBUG_NORMAL, "INIT", "✅ Warunki początkowe spełnione");
+    }
+    return true;
+}
+
+void RefreshAllData() {
+    if(g_dataManager != NULL) g_dataManager.RefreshAll();
+    if(g_marketAnalyzer != NULL) g_marketAnalyzer.Analyze();
+}
+
+bool RefreshMarketData() {
+    if(g_dataManager == NULL) return false;
+    return g_dataManager.RefreshTick();
+}
+
+void UpdateMarketAnalysis() {
+    if(g_marketAnalyzer != NULL) {
+        g_marketConditions = g_marketAnalyzer.GetCurrentConditions();
+    }
+}
+
+bool CheckRiskConditions() {
+    if(g_riskManager == NULL) return false;
+    
+    RiskStatus riskStatus = g_riskManager.GetCurrentStatus();
+    
+    if(riskStatus.emergencyStop) {
+        if(InpEnableLogging && g_diagnostics != NULL) {
+            g_diagnostics.Log(DEBUG_CRITICAL, "RISK", "🚨 EMERGENCY STOP AKTYWNY!");
+        }
+        return false;
+    }
+    
+    if(InpMaxDailyLoss > 0 && riskStatus.dailyLimitReached) {
+        static datetime lastWarning = 0;
+        if(TimeCurrent() - lastWarning > 300) {
+            if(InpEnableLogging && g_diagnostics != NULL) {
+                g_diagnostics.Log(DEBUG_NORMAL, "RISK", "⚠️ Osiągnięto dzienny limit strat");
+            }
+            lastWarning = TimeCurrent();
+        }
+        return false;
+    }
+    
+    return riskStatus.canTrade;
+}
+
+void ManageOpenPositions() {
+    if(g_positionManager == NULL) return;
+    
+    g_positionManager.ManageAll();
+    g_positionManager.CheckTrailingStops();
+    g_positionManager.CheckBreakeven();
+    g_positionManager.CheckPartialClose();
+}
+
+bool CanOpenNewPosition() {
+    if(!InpAutoTrading) {
+        return false;
+    }
+    
+    if(g_positionManager == NULL) return false;
+    
+    int ourPositions = g_positionManager.GetOpenPositionsCount();
+    
+    if(ourPositions >= InpMaxPositions) {
+        DEBUG_MSG(DEBUG_VERBOSE, "POSITION", 
+            StringFormat("Max positions reached: %d/%d", ourPositions, InpMaxPositions));
+        return false;
+    }
+    
+    if(g_riskManager != NULL && !g_riskManager.CanOpenNewPosition()) {
+        return false;
+    }
+    
+    return true;
+}
+
+void CheckNewBars() {
+    static datetime lastM15 = 0, lastH1 = 0;
+    
+    datetime currentM15 = iTime(_Symbol, PERIOD_M15, 0);
+    datetime currentH1 = iTime(_Symbol, PERIOD_H1, 0);
+    
+    if(currentM15 > lastM15 && lastM15 > 0) {
+        OnBarM15();
+        lastM15 = currentM15;
+    }
+    if(lastM15 == 0) lastM15 = currentM15;
+    
+    if(currentH1 > lastH1 && lastH1 > 0) {
+        OnBarH1();
+        lastH1 = currentH1;
+    }
+    if(lastH1 == 0) lastH1 = currentH1;
+}
+
+void OnBarM15() {
+    if(InpEnableLogging && g_diagnostics != NULL) {
+        g_diagnostics.Log(DEBUG_VERBOSE, "BAR", "Nowy bar M15");
+    }
+    
+    RefreshAllData();
+    g_signalMgmt.signalsGeneratedThisBar = 0;
+}
+
+void OnBarH1() {
+    if(InpEnableLogging && g_diagnostics != NULL) {
+        g_diagnostics.Log(DEBUG_NORMAL, "BAR", "📊 Nowy bar H1");
+    }
+    
+    if(g_marketAnalyzer != NULL) {
+        g_marketAnalyzer.UpdateKeyLevels();
+    }
+    
+    AdaptToMarketConditions();
+}
+
+void AdaptToMarketConditions() {
+    if(g_marketAnalyzer == NULL) return;
+    
+    MarketConditions conditions = g_marketAnalyzer.GetCurrentConditions();
+    
+    // POPRAWIONE: Bardziej konserwatywne dostosowanie
+    if(conditions.isVolatile) {
+        if(g_signalManager != NULL) {
+            g_signalManager.SetMinSignalScore(MathMax(70, InpMinSignalScore));  // Wyższe minimum
+        }
+        if(g_positionManager != NULL) {
+            g_positionManager.SetTrailingParams(true, 0.35, 0.2, 0.03);  // Szybsze trailing
+        }
+    }
+    else if(conditions.volatility < 0.5) {
+        if(g_signalManager != NULL) {
+            g_signalManager.SetMinSignalScore(MathMin(80, InpMinSignalScore + 10));
+        }
+        if(g_positionManager != NULL) {
+            g_positionManager.SetTrailingParams(true, 0.6, 0.35, 0.05);
+        }
+    }
+}
+
+void UpdateDashboard() {
+    if(g_dashboard == NULL || !InpShowDashboard || !InpEnableGUI) return;
+    
+    DashboardData data;
+    
+    data.balance = AccountInfoDouble(ACCOUNT_BALANCE);
+    data.equity = AccountInfoDouble(ACCOUNT_EQUITY);
+    data.freeMargin = AccountInfoDouble(ACCOUNT_MARGIN_FREE);
+    data.marginLevel = AccountInfoDouble(ACCOUNT_MARGIN_LEVEL);
+    
+    if(g_positionManager != NULL) {
+        data.openPositions = g_positionManager.GetOpenPositionsCount();
+        data.totalVolume = g_positionManager.GetTotalVolume();
+        data.floatingPL = g_positionManager.GetFloatingPL();
+    }
+    
+    data.performance.totalSignals = g_signalsGenerated;
+    data.performance.executedSignals = g_signalsExecuted;
+    
+    data.marketConditions = g_marketConditions;
+    
+    if(g_riskManager != NULL) {
+        data.riskStatus = g_riskManager.GetCurrentStatus();
+    }
+    
+    g_dashboard.UpdateData(data);
+    g_dashboard.Update();
+}
+
+void CheckSystemHealth() {
+    if(InpEnableLogging && g_diagnostics != NULL) {
+        g_diagnostics.Log(DEBUG_VERBOSE, "HEALTH", "Sprawdzanie stanu systemu...");
+    }
+    
+    if(!TerminalInfoInteger(TERMINAL_CONNECTED)) {
+        if(InpEnableLogging && g_diagnostics != NULL) {
+            g_diagnostics.Log(DEBUG_CRITICAL, "HEALTH", "❌ Utracono połączenie z serwerem!");
+        }
+        g_systemState.isActive = false;
+        return;
+    }
+    
+    int memoryUsed = TerminalInfoInteger(TERMINAL_MEMORY_USED);
+    if(memoryUsed > 1000) {
+        if(InpEnableLogging && g_diagnostics != NULL) {
+            g_diagnostics.Log(DEBUG_NORMAL, "HEALTH", "⚠️ Wysokie zużycie pamięci: " + IntegerToString(memoryUsed) + " MB");
+        }
+    }
+    
+    if(g_riskManager != NULL) {
+        g_riskManager.ResetDaily();
+    }
+}
+
+void SaveSystemState() {
+    if(g_diagnostics != NULL && InpEnableLogging) {
+        g_diagnostics.SaveState(g_systemState);
+    }
+}
+
+void SaveFinalReport() {
+    if(g_diagnostics != NULL && InpEnableLogging) {
+        g_diagnostics.SaveFinalReport(g_performance);
+    }
+}
+
+void ShowInitializationReport() {
+    string report = "\n";
+    report += "╔════════════════════════════════════════════════╗\n";
+    report += "║        MARKET COMPASS v5.2 - FIXED             ║\n";
+    report += "╠════════════════════════════════════════════════╣\n";
+    report += "║ Symbol: " + StringFormat("%-39s", _Symbol) + "║\n";
+    report += "║ Type: " + StringFormat("%-41s", g_isBTCMode ? "BTC OPTIMIZED v2" : 
+                                                   g_isCryptoMode ? "CRYPTO" : 
+                                                   g_cache.instrumentType == INSTRUMENT_METAL ? "METAL/GOLD" : "STANDARD") + "║\n";
+    report += "║ Account: " + StringFormat("%-38.2f", AccountInfoDouble(ACCOUNT_BALANCE)) + "║\n";
+    report += "║ Max Positions: " + StringFormat("%-32d", InpMaxPositions) + "║\n";
+    report += "║ Min Signal Score: " + StringFormat("%-29d", g_isBTCMode ? 75 : InpMinSignalScore) + "║\n";
+    report += "║ Min Risk:Reward: " + StringFormat("%-30.2f", g_isBTCMode ? 2.0 : InpMinRiskReward) + "║\n";
+    report += "║ Hedging Mode: " + StringFormat("%-33s", InpAllowHedging ? "ENABLED" : "DISABLED") + "║\n";
+    report += "║ Signal Check Interval: " + StringFormat("%-24d", g_signalMgmt.signalCheckInterval) + "║\n";
+    report += "║ Max Signals/Bar: " + StringFormat("%-30d", g_signalMgmt.maxSignalsPerBar) + "║\n";
+    report += "╚════════════════════════════════════════════════╝\n";
+    
+    Print(report);
+}
+
+string GetDeInitReasonText(int reason) {
+    switch(reason) {
+        case REASON_PROGRAM: return "Program stopped";
+        case REASON_REMOVE: return "Program removed";
+        case REASON_RECOMPILE: return "Program recompiled";
+        case REASON_CHARTCHANGE: return "Chart changed";
+        case REASON_CHARTCLOSE: return "Chart closed";
+        case REASON_PARAMETERS: return "Parameters changed";
+        case REASON_ACCOUNT: return "Account changed";
+        case REASON_TEMPLATE: return "Template applied";
+        case REASON_INITFAILED: return "Initialization failed";
+        case REASON_CLOSE: return "Terminal closed";
+        default: return "Unknown reason";
+    }
+}
+
+void SavePersistentData() {
+    string filename = "MC5_persistent.dat";
+    int handle = FileOpen(filename, FILE_WRITE|FILE_BIN);
+    
+    if(handle != INVALID_HANDLE) {
+        FileWriteLong(handle, g_signalMgmt.sessionStart);
+        FileWriteInteger(handle, g_signalMgmt.sessionSignalsGenerated);
+        FileWriteInteger(handle, g_signalMgmt.sessionSignalsExecuted);
+        FileWriteInteger(handle, g_performance.totalTrades);
+        FileWriteInteger(handle, g_performance.winningTrades);
+        FileWriteInteger(handle, g_performance.losingTrades);
+        FileWriteDouble(handle, g_performance.totalProfit);
+        FileWriteDouble(handle, g_performance.winRate);
+        
+        FileClose(handle);
+        
+        DEBUG_MSG(DEBUG_VERBOSE, "SYSTEM", "Persistent data saved");
+    }
+}
+
+void LoadPersistentData() {
+    string filename = "MC5_persistent.dat";
+    
+    if(FileIsExist(filename)) {
+        int handle = FileOpen(filename, FILE_READ|FILE_BIN);
+        
+        if(handle != INVALID_HANDLE) {
+            g_signalMgmt.sessionStart = (datetime)FileReadLong(handle);
+            g_signalMgmt.sessionSignalsGenerated = FileReadInteger(handle);
+            g_signalMgmt.sessionSignalsExecuted = FileReadInteger(handle);
+            g_performance.totalTrades = FileReadInteger(handle);
+            g_performance.winningTrades = FileReadInteger(handle);
+            g_performance.losingTrades = FileReadInteger(handle);
+            g_performance.totalProfit = FileReadDouble(handle);
+            g_performance.winRate = FileReadDouble(handle);
+            
+            FileClose(handle);
+            
+            DEBUG_MSG(DEBUG_VERBOSE, "SYSTEM", "Persistent data loaded");
+        }
+    }
+}
+
+void CleanupCache() {
+    if(TimeCurrent() - g_cache.lastInstrumentCheck > 300) {
+        g_cache.lastInstrumentCheck = 0;
+    }
+    
+    if(TimeCurrent() - g_cache.lastSpreadCheck > 60) {
+        g_cache.lastSpreadCheck = 0;
+    }
+    
+    if(TimeCurrent() - g_cache.lastATRCheck > 30) {
+        g_cache.lastATRCheck = 0;
+    }
+}
+
+void OptimizeMemory() {
+    if(g_positionManager != NULL) {
+        g_positionManager.CleanupTrailingCache();
+    }
+    
+    if(g_diagnostics != NULL) {
+        g_diagnostics.RotateLogs();
+    }
+    
+    DEBUG_MSG(DEBUG_VERBOSE, "SYSTEM", "Memory optimization completed");
+}
+
+void CleanupManagers() {
+    if(g_dataManager != NULL) { delete g_dataManager; g_dataManager = NULL; }
+    if(g_riskManager != NULL) { delete g_riskManager; g_riskManager = NULL; }
+    if(g_signalManager != NULL) { delete g_signalManager; g_signalManager = NULL; }
+    if(g_positionManager != NULL) { delete g_positionManager; g_positionManager = NULL; }
+    if(g_marketAnalyzer != NULL) { delete g_marketAnalyzer; g_marketAnalyzer = NULL; }
+}
+
+void CleanupAll() {
+    CleanupManagers();
+    
+    if(g_activeStrategy != NULL) { delete g_activeStrategy; g_activeStrategy = NULL; }
+    if(g_dashboard != NULL) { delete g_dashboard; g_dashboard = NULL; }
+    if(g_diagnostics != NULL) { 
+        g_diagnostics.EndSession();
+        delete g_diagnostics; 
+        g_diagnostics = NULL; 
+    }
+}
