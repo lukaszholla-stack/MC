@@ -771,9 +771,10 @@ public:
                 return m_metalStrategy.CalculateTakeProfit(direction, entry, sl);
             case INSTRUMENT_CRYPTO:
                 return m_cryptoStrategy.CalculateTakeProfit(direction, entry, sl);
-            default:
+            default: {
                 double slDistance = MathAbs(entry - sl);
                 return (direction == SIGNAL_BUY) ? entry + slDistance * 2.0 : entry - slDistance * 2.0;
+            }
         }
     }
 };

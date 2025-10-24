@@ -36,6 +36,7 @@ enum ENUM_STRATEGY_MODE {
     STRATEGY_HARMONIC,  // Force Harmonic patterns (Gartley, Butterfly, Bat)
     STRATEGY_ELLIOTT,   // Force Elliott Waves (ABC, Wave 5)
     STRATEGY_SCALPING,  // Force High-Frequency Scalping
+    STRATEGY_ADAPTIVE,  // Adaptive strategy (auto-detects instrument type)
     STRATEGY_HYBRID     // Mix of all (adaptive ML-based weighting)
 };
 
@@ -419,10 +420,10 @@ private:
         }
     }
 
-    double UpdateWinRate(double currentRate, int totalTrades) {
-        double wins = (currentRate / 100.0) * (totalTrades - 1);
+    double UpdateWinRate(double currentRate, int numTrades) {
+        double wins = (currentRate / 100.0) * (numTrades - 1);
         wins += 1.0;  // Add current win
-        return (wins / totalTrades) * 100.0;
+        return (wins / numTrades) * 100.0;
     }
 };
 
