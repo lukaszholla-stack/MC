@@ -10,6 +10,8 @@
 #ifndef UT_CORE_MQH
 #define UT_CORE_MQH
 
+#pragma message("✅ Loading UT_Core.mqh - FIXED VERSION with STRATEGY_ADAPTIVE")
+
 // Standard MT5 libraries
 #include <Trade\Trade.mqh>
 #include <Trade\PositionInfo.mqh>

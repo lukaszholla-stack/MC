@@ -10,6 +10,8 @@
 #ifndef UT_STRATEGIES_MQH
 #define UT_STRATEGIES_MQH
 
+#pragma message("✅ Loading UT_Strategies.mqh - FIXED VERSION with pointer operators")
+
 #include "UT_Core.mqh"
 #include "UT_Analysis.mqh"
 
