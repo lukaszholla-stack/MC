@@ -477,16 +477,16 @@ public:
         double maxDaily = (mode == MODE_SAFE) ? 3.0 : (mode == MODE_BALANCED) ? 5.0 : 10.0;
         double maxDD = (mode == MODE_SAFE) ? 15.0 : (mode == MODE_BALANCED) ? 20.0 : 30.0;
 
-        if(!m_riskManager.Initialize(risk, maxDaily, maxDD)) return false;
+        if(!m_riskManager->Initialize(risk, maxDaily, maxDD)) return false;
 
         int minScore = (mode == MODE_SAFE) ? 70 : (mode == MODE_BALANCED) ? 60 : 50;
-        if(!m_signalManager.Initialize(minScore, 1.5)) return false;
+        if(!m_signalManager->Initialize(minScore, 1.5)) return false;
 
-        if(!m_positionManager.Initialize(true, true, true)) return false;
+        if(!m_positionManager->Initialize(true, true, true)) return false;
 
-        if(!m_marketAnalyzer.Initialize()) return false;
+        if(!m_marketAnalyzer->Initialize()) return false;
 
-        if(!m_dashboard.Initialize()) return false;
+        if(!m_dashboard->Initialize()) return false;
 
         // Initialize strategy
         if(!InitializeStrategy(strategyMode)) return false;
@@ -516,38 +516,38 @@ public:
         m_lastUpdate = TimeCurrent();
 
         // Analyze market
-        MarketConditions conditions = m_marketAnalyzer.Analyze();
+        MarketConditions conditions = m_marketAnalyzer->Analyze();
 
         // Check if we can trade
-        if(!m_riskManager.CanTrade()) {
+        if(!m_riskManager->CanTrade()) {
             return;
         }
 
         // Manage existing positions
-        m_positionManager.ManagePositions();
+        m_positionManager->ManagePositions();
 
         // Check for new signals
         if(m_activeStrategy != NULL) {
-            TradeSignal signal = m_activeStrategy.CheckSignal(conditions);
+            TradeSignal signal = m_activeStrategy->CheckSignal(conditions);
 
-            if(m_signalManager.ValidateSignal(signal)) {
+            if(m_signalManager->ValidateSignal(signal)) {
                 // Calculate position size
                 double slDistance = MathAbs(signal.entryPrice - signal.stopLoss);
-                signal.lotSize = m_riskManager.CalculatePositionSize(slDistance);
+                signal.lotSize = m_riskManager->CalculatePositionSize(slDistance);
 
                 // Open position
                 if(signal.lotSize > 0) {
-                    m_positionManager.OpenPosition(signal);
+                    m_positionManager->OpenPosition(signal);
                 }
             }
         }
 
         // Update dashboard
-        m_dashboard.Update(conditions);
+        m_dashboard->Update(conditions);
     }
 
     void OnDeinit() {
-        m_dashboard.Destroy();
+        m_dashboard->Destroy();
         Print("✅ Ultimate Trader EA - Shutdown complete");
     }
 
@@ -575,8 +575,8 @@ private:
 
         if(m_activeStrategy == NULL) return false;
 
-        m_activeStrategy.SetMarketAnalyzer(m_marketAnalyzer);
-        return m_activeStrategy.Initialize();
+        m_activeStrategy->SetMarketAnalyzer(m_marketAnalyzer);
+        return m_activeStrategy->Initialize();
     }
 };
 
