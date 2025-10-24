@@ -9,7 +9,6 @@
 #property description "Ultimate hybrid EA combining 8 strategies"
 #property description "Forex | Metals | Crypto | Scalping"
 #property description "Professional risk management + GUI dashboard"
-#property strict
 
 #include "UT_Core.mqh"
 #include "UT_Analysis.mqh"

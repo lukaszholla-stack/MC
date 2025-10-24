@@ -5,7 +5,6 @@
 //+------------------------------------------------------------------+
 #property copyright "Ultimate Trader Development Team"
 #property version   "1.00"
-#property strict
 
 #ifndef UT_STRATEGIES_MQH
 #define UT_STRATEGIES_MQH
