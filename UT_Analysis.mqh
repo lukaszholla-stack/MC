@@ -9,9 +9,6 @@
 #ifndef UT_ANALYSIS_MQH
 #define UT_ANALYSIS_MQH
 
-// VERSION CHECK: This is the FIXED version from 2025-10-24
-#pragma message("✅ Loading UT_Analysis.mqh - FIXED VERSION with pointer operators")
-
 #include "UT_Core.mqh"
 
 //+------------------------------------------------------------------+
