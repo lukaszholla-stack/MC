@@ -78,8 +78,8 @@ public:
         // Calculate composite score
         signal.CalculateScore();
 
-        // Determine direction
-        if(signal.score >= 60) {
+        // Determine direction (lowered threshold for MODE_AGGRESSIVE)
+        if(signal.score >= 40) {
             if(conditions.trendDirection > 0 && conditions.rsi > 50) {
                 signal.direction = SIGNAL_BUY;
                 signal.isValid = true;
@@ -236,13 +236,13 @@ public:
 
         signal.CalculateScore();
 
-        // Signal generation
-        if(nearSupport && signal.score >= 50 && conditions.volumeSpike > 1.3) {
+        // Signal generation (lowered volume requirement)
+        if(nearSupport && signal.score >= 40 && conditions.volumeSpike > 1.1) {
             signal.direction = SIGNAL_BUY;
             signal.isValid = true;
             signal.reason = "Metal: Bounce from support + volume";
         }
-        else if(nearResistance && signal.score >= 50 && conditions.volumeSpike > 1.3) {
+        else if(nearResistance && signal.score >= 40 && conditions.volumeSpike > 1.1) {
             signal.direction = SIGNAL_SELL;
             signal.isValid = true;
             signal.reason = "Metal: Rejection from resistance + volume";
@@ -321,8 +321,8 @@ public:
 
         signal.CalculateScore();
 
-        // Crypto requires high volume + momentum
-        if(signal.score >= 65 && conditions.volumeSpike > 1.4) {
+        // Crypto requires moderate score + high volume
+        if(signal.score >= 40 && conditions.volumeSpike > 1.2) {
             if(conditions.rsi < 30 && conditions.macd > conditions.macdSignal) {
                 signal.direction = SIGNAL_BUY;
                 signal.isValid = true;
