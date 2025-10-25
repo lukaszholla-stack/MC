@@ -79,7 +79,7 @@ public:
         signal.CalculateScore();
 
         // Determine direction (simplified conditions)
-        if(signal.score >= 40) {
+        if(signal.score >= 20) {
             // Trade with the trend
             if(conditions.trendDirection > 0) {
                 signal.direction = SIGNAL_BUY;
@@ -249,12 +249,12 @@ public:
         signal.CalculateScore();
 
         // Signal generation (lowered volume requirement)
-        if(nearSupport && signal.score >= 40 && conditions.volumeSpike > 1.1) {
+        if(nearSupport && signal.score >= 20 && conditions.volumeSpike > 1.1) {
             signal.direction = SIGNAL_BUY;
             signal.isValid = true;
             signal.reason = "Metal: Bounce from support + volume";
         }
-        else if(nearResistance && signal.score >= 40 && conditions.volumeSpike > 1.1) {
+        else if(nearResistance && signal.score >= 20 && conditions.volumeSpike > 1.1) {
             signal.direction = SIGNAL_SELL;
             signal.isValid = true;
             signal.reason = "Metal: Rejection from resistance + volume";
@@ -333,11 +333,11 @@ public:
 
         signal.CalculateScore();
 
-        Print("🔍 Crypto Strategy: score=", signal.score, " (threshold=40)");
+        Print("🔍 Crypto Strategy: score=", signal.score, " (threshold=20)");
 
         // Crypto: Trade with trend if score is good
-        if(signal.score >= 40) {
-            Print("✅ Score >= 40, checking conditions...");
+        if(signal.score >= 20) {
+            Print("✅ Score >= 20, checking conditions...");
             Print("   Trend=", conditions.trendDirection, " RSI=", DoubleToString(conditions.rsi, 1),
                   " MACD=", DoubleToString(conditions.macd, 5), " Signal=", DoubleToString(conditions.macdSignal, 5));
 
@@ -375,7 +375,7 @@ public:
                 Print("   Checked: MACD vs Signal (", DoubleToString(conditions.macd, 5), " vs ", DoubleToString(conditions.macdSignal, 5), ")");
             }
         } else {
-            Print("❌ Score too low: ", signal.score, " < 40");
+            Print("❌ Score too low: ", signal.score, " < 20");
         }
 
         return signal;
