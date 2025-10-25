@@ -783,7 +783,8 @@ public:
               ", isValid=", (signal.isValid ? "true" : "false"),
               ", reason=\"", signal.reason, "\"");
 
-        signal.source = STRATEGY_ADAPTIVE;  // Mark as adaptive
+        // Keep original source for strategy-specific threshold validation
+        // DO NOT overwrite signal.source - it's needed for proper validation
 
         return signal;
     }
