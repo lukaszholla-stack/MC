@@ -333,31 +333,49 @@ public:
 
         signal.CalculateScore();
 
+        Print("🔍 Crypto Strategy: score=", signal.score, " (threshold=40)");
+
         // Crypto: Trade with trend if score is good
         if(signal.score >= 40) {
+            Print("✅ Score >= 40, checking conditions...");
+            Print("   Trend=", conditions.trendDirection, " RSI=", DoubleToString(conditions.rsi, 1),
+                  " MACD=", DoubleToString(conditions.macd, 5), " Signal=", DoubleToString(conditions.macdSignal, 5));
+
             // Bullish conditions
             if(conditions.trendDirection > 0 && conditions.rsi < 70) {
                 signal.direction = SIGNAL_BUY;
                 signal.isValid = true;
                 signal.reason = "Crypto: Bullish trend + momentum";
+                Print("✅ BUY: Trend>0 (", conditions.trendDirection, ") AND RSI<70 (", DoubleToString(conditions.rsi, 1), ")");
             }
             // Bearish conditions
             else if(conditions.trendDirection < 0 && conditions.rsi > 30) {
                 signal.direction = SIGNAL_SELL;
                 signal.isValid = true;
                 signal.reason = "Crypto: Bearish trend + momentum";
+                Print("✅ SELL: Trend<0 (", conditions.trendDirection, ") AND RSI>30 (", DoubleToString(conditions.rsi, 1), ")");
             }
             // Neutral trend - use RSI extremes
             else if(conditions.rsi < 40 && conditions.macd > conditions.macdSignal) {
                 signal.direction = SIGNAL_BUY;
                 signal.isValid = true;
                 signal.reason = "Crypto: RSI low + MACD bullish";
+                Print("✅ BUY: RSI<40 (", DoubleToString(conditions.rsi, 1), ") AND MACD>Signal");
             }
             else if(conditions.rsi > 60 && conditions.macd < conditions.macdSignal) {
                 signal.direction = SIGNAL_SELL;
                 signal.isValid = true;
                 signal.reason = "Crypto: RSI high + MACD bearish";
+                Print("✅ SELL: RSI>60 (", DoubleToString(conditions.rsi, 1), ") AND MACD<Signal");
             }
+            else {
+                Print("❌ NO MATCH: All conditions failed");
+                Print("   Checked: Trend=", conditions.trendDirection, " (need >0 or <0)");
+                Print("   Checked: RSI=", DoubleToString(conditions.rsi, 1), " (need <70 or >30 for trend, or <40/>60 for neutral)");
+                Print("   Checked: MACD vs Signal (", DoubleToString(conditions.macd, 5), " vs ", DoubleToString(conditions.macdSignal, 5), ")");
+            }
+        } else {
+            Print("❌ Score too low: ", signal.score, " < 40");
         }
 
         return signal;
@@ -737,24 +755,40 @@ public:
 
         // Select appropriate strategy
         CBaseStrategy* selectedStrategy = NULL;
+        string strategyName = "";
 
         switch(instrType) {
             case INSTRUMENT_FOREX:
                 selectedStrategy = m_forexStrategy;
+                strategyName = "Forex";
                 break;
             case INSTRUMENT_METAL:
                 selectedStrategy = m_metalStrategy;
+                strategyName = "Metal";
                 break;
             case INSTRUMENT_CRYPTO:
                 selectedStrategy = m_cryptoStrategy;
+                strategyName = "Crypto";
                 break;
             default:
                 selectedStrategy = m_forexStrategy;  // Fallback
+                strategyName = "Forex (fallback)";
                 break;
         }
 
+        Print("🔍 Adaptive: Detected ", EnumToString(instrType), " → Using ", strategyName, " Strategy");
+        Print("📊 Market: RSI=", DoubleToString(conditions.rsi, 1),
+              " Trend=", conditions.trendDirection,
+              " MACD=", DoubleToString(conditions.macd, 5));
+
         // Generate signal from selected strategy
         TradeSignal signal = (*selectedStrategy).CheckSignal(conditions);
+
+        Print("📤 ", strategyName, " returned: direction=", EnumToString(signal.direction),
+              ", score=", signal.score,
+              ", isValid=", (signal.isValid ? "true" : "false"),
+              ", reason=\"", signal.reason, "\"");
+
         signal.source = STRATEGY_ADAPTIVE;  // Mark as adaptive
 
         return signal;
