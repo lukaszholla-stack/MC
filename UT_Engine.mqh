@@ -136,10 +136,26 @@ public:
         m_minRiskReward = minRR;
 
         Print("✅ Signal Manager initialized");
-        Print("   Min signal score: ", m_minSignalScore);
+        Print("   Default min signal score: ", m_minSignalScore);
+        Print("   Strategy-specific thresholds: Crypto=20, Scalping=40, Others=60");
         Print("   Min R:R ratio: ", m_minRiskReward);
 
         return true;
+    }
+
+    // Get minimum score threshold for specific strategy
+    int GetMinScoreForStrategy(ENUM_STRATEGY_MODE strategy) {
+        switch(strategy) {
+            case STRATEGY_CRYPTO:    return 20;  // Crypto: Low threshold due to high volatility
+            case STRATEGY_SCALPING:  return 40;  // Scalping: Medium threshold for quick trades
+            case STRATEGY_FOREX:     return 60;  // Forex: High threshold for quality signals
+            case STRATEGY_METAL:     return 60;  // Metal: High threshold for stability
+            case STRATEGY_HARMONIC:  return 55;  // Harmonic: Medium-high for pattern quality
+            case STRATEGY_ELLIOTT:   return 55;  // Elliott: Medium-high for wave quality
+            case STRATEGY_ADAPTIVE:  return 50;  // Adaptive: Medium threshold
+            case STRATEGY_HYBRID:    return 50;  // Hybrid: Medium threshold
+            default:                 return m_minSignalScore; // Default to configured value
+        }
     }
 
     bool ValidateSignal(TradeSignal& signal) {
@@ -150,9 +166,11 @@ public:
             return false;
         }
 
-        // Check score
-        if(signal.score < m_minSignalScore) {
-            Print("❌ Signal rejected: Score too low (", signal.score, " < ", m_minSignalScore, ")");
+        // Check score - use strategy-specific threshold
+        int requiredScore = GetMinScoreForStrategy(signal.source);
+        if(signal.score < requiredScore) {
+            Print("❌ Signal rejected: Score too low (", signal.score, " < ", requiredScore,
+                  " for ", EnumToString(signal.source), ")");
             return false;
         }
 
