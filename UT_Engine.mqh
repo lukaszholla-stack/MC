@@ -145,7 +145,8 @@ public:
     bool ValidateSignal(TradeSignal& signal) {
         // Check if signal is valid
         if(!signal.isValid) {
-            Print("❌ Signal rejected: Invalid signal");
+            Print("❌ Signal rejected: Invalid signal (direction=", EnumToString(signal.direction),
+                  ", score=", signal.score, ", source=", EnumToString(signal.source), ")");
             return false;
         }
 
@@ -158,7 +159,7 @@ public:
         // Check cooldown (except for scalping)
         if(!signal.isScalpSignal) {
             if(TimeCurrent() - m_lastSignalTime < m_signalCooldown) {
-                Print("❌ Signal rejected: Cooldown active");
+                // Don't print cooldown messages (too spammy)
                 return false;
             }
         }
@@ -170,6 +171,8 @@ public:
         }
 
         m_lastSignalTime = TimeCurrent();
+        Print("✅ Signal ACCEPTED: ", EnumToString(signal.direction), " | Score: ", signal.score,
+              " | R:R: ", DoubleToString(signal.riskRewardRatio, 2));
         return true;
     }
 };
