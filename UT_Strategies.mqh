@@ -513,7 +513,14 @@ public:
         }
 
         // Check spread
+        double currentSpread = (g_symbol.Ask() - g_symbol.Bid()) / _Point;
         if(!IsSpreadAcceptable()) {
+            static datetime lastSpreadLog = 0;
+            if(TimeCurrent() - lastSpreadLog > 60) {  // Log once per minute
+                Print("⚠️ Scalping: Spread too high (", DoubleToString(currentSpread, 1),
+                      " > ", m_maxSpreadPoints, " points)");
+                lastSpreadLog = TimeCurrent();
+            }
             return signal;
         }
 
@@ -521,8 +528,8 @@ public:
         double microMomentum = CalculateMicroMomentum();
         signal.microMomentum = microMomentum;
 
-        // Scalp signal threshold
-        double threshold = 3.0;  // 3 pips minimum momentum
+        // Scalp signal threshold - LOWERED for better signal generation
+        double threshold = 0.5;  // 0.5 pips minimum momentum (was 3.0)
 
         if(microMomentum > threshold) {
             signal.direction = SIGNAL_BUY;
@@ -530,6 +537,8 @@ public:
             signal.score = 100;  // Scalping signals are binary (yes/no)
             signal.reason = StringFormat("Scalp BUY: Momentum %.2f pips", microMomentum);
             m_lastSignalTime = TimeCurrent();
+            Print("🔥 Scalping BUY: Momentum=", DoubleToString(microMomentum, 2),
+                  " pips, Spread=", DoubleToString(currentSpread, 1));
         }
         else if(microMomentum < -threshold) {
             signal.direction = SIGNAL_SELL;
@@ -537,6 +546,8 @@ public:
             signal.score = 100;
             signal.reason = StringFormat("Scalp SELL: Momentum %.2f pips", MathAbs(microMomentum));
             m_lastSignalTime = TimeCurrent();
+            Print("🔥 Scalping SELL: Momentum=", DoubleToString(microMomentum, 2),
+                  " pips, Spread=", DoubleToString(currentSpread, 1));
         }
 
         return signal;
@@ -739,7 +750,24 @@ public:
     }
 
     virtual TradeSignal CheckSignal(MarketConditions& conditions) override {
-        // Auto-detect instrument type
+        // Check if scalping conditions are met (low spread + high volatility)
+        double spread = (g_symbol.Ask() - g_symbol.Bid()) / _Point;
+        bool isLowSpread = (spread <= 20);  // 20 points max
+        bool isHighVolatility = conditions.isVolatile;
+
+        // PRIORITY: Use scalping if conditions are favorable
+        if(isLowSpread && isHighVolatility) {
+            TradeSignal signal = (*m_scalpStrategy).CheckSignal(conditions);
+
+            if(signal.isValid && signal.direction != SIGNAL_NONE) {
+                Print("📊 Scalping (adaptive): ", EnumToString(signal.direction),
+                      " (score=", signal.score, ", spread=", DoubleToString(spread, 1), ")");
+            }
+
+            return signal;
+        }
+
+        // Auto-detect instrument type for regular strategies
         ENUM_INSTRUMENT_TYPE instrType = DetectInstrumentType(_Symbol);
 
         // Select appropriate strategy
@@ -781,6 +809,16 @@ public:
     }
 
     virtual double CalculateStopLoss(ENUM_SIGNAL_DIRECTION direction, double entry, double atr) override {
+        // Check if scalping conditions are met (same logic as CheckSignal)
+        double spread = (g_symbol.Ask() - g_symbol.Bid()) / _Point;
+        bool isLowSpread = (spread <= 20);
+
+        // Use scalping SL/TP calculation when spread is low
+        if(isLowSpread) {
+            return (*m_scalpStrategy).CalculateStopLoss(direction, entry, atr);
+        }
+
+        // Regular strategy selection based on instrument
         ENUM_INSTRUMENT_TYPE instrType = DetectInstrumentType(_Symbol);
 
         switch(instrType) {
@@ -796,6 +834,16 @@ public:
     }
 
     virtual double CalculateTakeProfit(ENUM_SIGNAL_DIRECTION direction, double entry, double sl) override {
+        // Check if scalping conditions are met (same logic as CheckSignal)
+        double spread = (g_symbol.Ask() - g_symbol.Bid()) / _Point;
+        bool isLowSpread = (spread <= 20);
+
+        // Use scalping SL/TP calculation when spread is low
+        if(isLowSpread) {
+            return (*m_scalpStrategy).CalculateTakeProfit(direction, entry, sl);
+        }
+
+        // Regular strategy selection based on instrument
         ENUM_INSTRUMENT_TYPE instrType = DetectInstrumentType(_Symbol);
 
         switch(instrType) {
