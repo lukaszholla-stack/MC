@@ -686,8 +686,17 @@ public:
                 // Set entry price
                 signal.entryPrice = (signal.direction == SIGNAL_BUY) ? g_symbol.Ask() : g_symbol.Bid();
 
-                // Calculate SL and TP
-                double atr = (ArraySize(g_buffer_atr) > 0) ? g_buffer_atr[0] : 0.001;
+                // Calculate SL and TP - use ATR from market conditions
+                double atr = conditions.volatility;
+
+                // If ATR is too small or zero, use percentage of entry as fallback
+                if(atr <= 0.0001) {
+                    atr = signal.entryPrice * 0.005; // 0.5% of entry price
+                    Print("⚠️ ATR unavailable (", conditions.volatility, "), using fallback: ", atr);
+                } else {
+                    Print("📊 Using ATR: ", atr, " (", DoubleToString(atr/signal.entryPrice*100, 2), "% of entry)");
+                }
+
                 signal.stopLoss = (*m_activeStrategy).CalculateStopLoss(signal.direction, signal.entryPrice, atr);
                 signal.takeProfit = (*m_activeStrategy).CalculateTakeProfit(signal.direction, signal.entryPrice, signal.stopLoss);
 
