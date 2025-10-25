@@ -341,38 +341,32 @@ public:
             Print("   Trend=", conditions.trendDirection, " RSI=", DoubleToString(conditions.rsi, 1),
                   " MACD=", DoubleToString(conditions.macd, 5), " Signal=", DoubleToString(conditions.macdSignal, 5));
 
-            // Bullish conditions
-            if(conditions.trendDirection > 0 && conditions.rsi < 70) {
+            // Bullish trend - trade with trend
+            if(conditions.trendDirection > 0) {
                 signal.direction = SIGNAL_BUY;
                 signal.isValid = true;
-                signal.reason = "Crypto: Bullish trend + momentum";
-                Print("✅ BUY: Trend>0 (", conditions.trendDirection, ") AND RSI<70 (", DoubleToString(conditions.rsi, 1), ")");
+                signal.reason = "Crypto: Bullish trend confirmed";
+                Print("✅ BUY: Trend>0 (", conditions.trendDirection, ")");
             }
-            // Bearish conditions
-            else if(conditions.trendDirection < 0 && conditions.rsi > 30) {
+            // Bearish trend - trade with trend
+            else if(conditions.trendDirection < 0) {
                 signal.direction = SIGNAL_SELL;
                 signal.isValid = true;
-                signal.reason = "Crypto: Bearish trend + momentum";
-                Print("✅ SELL: Trend<0 (", conditions.trendDirection, ") AND RSI>30 (", DoubleToString(conditions.rsi, 1), ")");
+                signal.reason = "Crypto: Bearish trend confirmed";
+                Print("✅ SELL: Trend<0 (", conditions.trendDirection, ")");
             }
-            // Neutral trend - use RSI extremes
-            else if(conditions.rsi < 40 && conditions.macd > conditions.macdSignal) {
+            // Neutral/ranging market - use RSI centerline (50)
+            else if(conditions.rsi < 50) {
                 signal.direction = SIGNAL_BUY;
                 signal.isValid = true;
-                signal.reason = "Crypto: RSI low + MACD bullish";
-                Print("✅ BUY: RSI<40 (", DoubleToString(conditions.rsi, 1), ") AND MACD>Signal");
-            }
-            else if(conditions.rsi > 60 && conditions.macd < conditions.macdSignal) {
-                signal.direction = SIGNAL_SELL;
-                signal.isValid = true;
-                signal.reason = "Crypto: RSI high + MACD bearish";
-                Print("✅ SELL: RSI>60 (", DoubleToString(conditions.rsi, 1), ") AND MACD<Signal");
+                signal.reason = "Crypto: Range BUY (RSI below 50)";
+                Print("✅ BUY: Trend=0, RSI<50 (", DoubleToString(conditions.rsi, 1), ")");
             }
             else {
-                Print("❌ NO MATCH: All conditions failed");
-                Print("   Checked: Trend=", conditions.trendDirection, " (need >0 or <0)");
-                Print("   Checked: RSI=", DoubleToString(conditions.rsi, 1), " (need <70 or >30 for trend, or <40/>60 for neutral)");
-                Print("   Checked: MACD vs Signal (", DoubleToString(conditions.macd, 5), " vs ", DoubleToString(conditions.macdSignal, 5), ")");
+                signal.direction = SIGNAL_SELL;
+                signal.isValid = true;
+                signal.reason = "Crypto: Range SELL (RSI above 50)";
+                Print("✅ SELL: Trend=0, RSI>=50 (", DoubleToString(conditions.rsi, 1), ")");
             }
         } else {
             Print("❌ Score too low: ", signal.score, " < 20");
