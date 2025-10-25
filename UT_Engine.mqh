@@ -383,18 +383,16 @@ public:
             // Calculate profit in USD
             double profitUSD = g_position.Profit();
 
-            // FAST-CLOSE LOGIC: For scalping and crypto strategies
-            // Close entire position at minimal profit (not waiting for full TP)
-            // Check if this is a fast-close strategy (scalping or crypto)
-            bool isFastCloseStrategy = (StringFind(comment, "SCALPING") >= 0 ||
-                                       StringFind(comment, "CRYPTO") >= 0 ||
-                                       StringFind(comment, "Scalp") >= 0);
+            // SCALPING FAST-CLOSE LOGIC
+            // Only for STRATEGY_SCALPING - close entire position at minimal profit
+            // Other strategies (crypto, forex, metal) use regular position management
+            bool isScalpingPosition = (StringFind(comment, "SCALPING") >= 0);
 
-            if(isFastCloseStrategy) {
-                double targetProfit = 1.50;  // $1.50 minimum profit for fast strategies
+            if(isScalpingPosition) {
+                double targetProfit = 1.50;  // $1.50 minimum profit for scalping
 
                 if(profitUSD >= targetProfit) {
-                    // Close entire position
+                    // Close entire scalping position
                     MqlTradeRequest req = {};
                     MqlTradeResult res = {};
 
@@ -407,11 +405,11 @@ public:
                     req.deviation = 10;
 
                     if(OrderSend(req, res)) {
-                        Print("💰 FAST-CLOSE: Ticket ", ticket, " | Strategy: ", comment,
-                              " | Profit: $", DoubleToString(profitUSD, 2));
+                        Print("💰 SCALP CLOSED: Ticket ", ticket, " | Profit: $",
+                              DoubleToString(profitUSD, 2));
                     }
                 }
-                continue;  // Skip regular position management for fast-close strategies
+                continue;  // Skip regular position management for scalping
             }
 
             // REGULAR POSITION MANAGEMENT (non-scalping)
