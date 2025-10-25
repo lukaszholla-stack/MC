@@ -78,17 +78,29 @@ public:
         // Calculate composite score
         signal.CalculateScore();
 
-        // Determine direction (lowered threshold for MODE_AGGRESSIVE)
+        // Determine direction (simplified conditions)
         if(signal.score >= 40) {
-            if(conditions.trendDirection > 0 && conditions.rsi > 50) {
+            // Trade with the trend
+            if(conditions.trendDirection > 0) {
                 signal.direction = SIGNAL_BUY;
                 signal.isValid = true;
-                signal.reason = "Forex: Strong bullish trend + momentum";
+                signal.reason = "Forex: Bullish trend confirmed";
             }
-            else if(conditions.trendDirection < 0 && conditions.rsi < 50) {
+            else if(conditions.trendDirection < 0) {
                 signal.direction = SIGNAL_SELL;
                 signal.isValid = true;
-                signal.reason = "Forex: Strong bearish trend + momentum";
+                signal.reason = "Forex: Bearish trend confirmed";
+            }
+            // No clear trend - use RSI
+            else if(conditions.rsi < 45) {
+                signal.direction = SIGNAL_BUY;
+                signal.isValid = true;
+                signal.reason = "Forex: RSI low in range";
+            }
+            else if(conditions.rsi > 55) {
+                signal.direction = SIGNAL_SELL;
+                signal.isValid = true;
+                signal.reason = "Forex: RSI high in range";
             }
         }
 
@@ -321,27 +333,30 @@ public:
 
         signal.CalculateScore();
 
-        // Crypto requires moderate score + high volume
-        if(signal.score >= 40 && conditions.volumeSpike > 1.2) {
-            if(conditions.rsi < 30 && conditions.macd > conditions.macdSignal) {
+        // Crypto: Trade with trend if score is good
+        if(signal.score >= 40) {
+            // Bullish conditions
+            if(conditions.trendDirection > 0 && conditions.rsi < 70) {
                 signal.direction = SIGNAL_BUY;
                 signal.isValid = true;
-                signal.reason = "Crypto: RSI oversold bounce + high volume";
+                signal.reason = "Crypto: Bullish trend + momentum";
             }
-            else if(conditions.rsi > 70 && conditions.macd < conditions.macdSignal) {
+            // Bearish conditions
+            else if(conditions.trendDirection < 0 && conditions.rsi > 30) {
                 signal.direction = SIGNAL_SELL;
                 signal.isValid = true;
-                signal.reason = "Crypto: RSI overbought rejection + high volume";
+                signal.reason = "Crypto: Bearish trend + momentum";
             }
-            else if(conditions.momentum > 50) {
+            // Neutral trend - use RSI extremes
+            else if(conditions.rsi < 40 && conditions.macd > conditions.macdSignal) {
                 signal.direction = SIGNAL_BUY;
                 signal.isValid = true;
-                signal.reason = "Crypto: Strong bullish momentum";
+                signal.reason = "Crypto: RSI low + MACD bullish";
             }
-            else if(conditions.momentum < -50) {
+            else if(conditions.rsi > 60 && conditions.macd < conditions.macdSignal) {
                 signal.direction = SIGNAL_SELL;
                 signal.isValid = true;
-                signal.reason = "Crypto: Strong bearish momentum";
+                signal.reason = "Crypto: RSI high + MACD bearish";
             }
         }
 
