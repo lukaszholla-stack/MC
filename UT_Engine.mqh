@@ -548,6 +548,22 @@ public:
         if(m_activeStrategy != NULL) {
             TradeSignal signal = (*m_activeStrategy).CheckSignal(conditions);
 
+            // If signal is valid, calculate entry/SL/TP
+            if(signal.isValid && signal.direction != SIGNAL_NONE) {
+                // Set entry price
+                signal.entryPrice = (signal.direction == SIGNAL_BUY) ? g_symbol.Ask() : g_symbol.Bid();
+
+                // Calculate SL and TP
+                double atr = (ArraySize(g_buffer_atr) > 0) ? g_buffer_atr[0] : 0.001;
+                signal.stopLoss = (*m_activeStrategy).CalculateStopLoss(signal.direction, signal.entryPrice, atr);
+                signal.takeProfit = (*m_activeStrategy).CalculateTakeProfit(signal.direction, signal.entryPrice, signal.stopLoss);
+
+                // Calculate R:R ratio
+                double slDistance = MathAbs(signal.entryPrice - signal.stopLoss);
+                double tpDistance = MathAbs(signal.takeProfit - signal.entryPrice);
+                signal.riskRewardRatio = (slDistance > 0) ? tpDistance / slDistance : 0;
+            }
+
             if((*m_signalManager).ValidateSignal(signal)) {
                 // Calculate position size
                 double slDistance = MathAbs(signal.entryPrice - signal.stopLoss);
