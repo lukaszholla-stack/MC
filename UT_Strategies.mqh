@@ -333,44 +333,39 @@ public:
 
         signal.CalculateScore();
 
-        Print("🔍 Crypto Strategy: score=", signal.score, " (threshold=20)");
-
-        // Crypto: Trade with trend if score is good
+        // Only log if score meets threshold (reduces spam)
         if(signal.score >= 20) {
-            Print("✅ Score >= 20, checking conditions...");
-            Print("   Trend=", conditions.trendDirection, " RSI=", DoubleToString(conditions.rsi, 1),
-                  " MACD=", DoubleToString(conditions.macd, 5), " Signal=", DoubleToString(conditions.macdSignal, 5));
-
             // Bullish trend - trade with trend
             if(conditions.trendDirection > 0) {
                 signal.direction = SIGNAL_BUY;
                 signal.isValid = true;
                 signal.reason = "Crypto: Bullish trend confirmed";
-                Print("✅ BUY: Trend>0 (", conditions.trendDirection, ")");
+                Print("🔍 Crypto: BUY signal (score=", signal.score, ", trend=", conditions.trendDirection,
+                      ", RSI=", DoubleToString(conditions.rsi, 1), ")");
             }
             // Bearish trend - trade with trend
             else if(conditions.trendDirection < 0) {
                 signal.direction = SIGNAL_SELL;
                 signal.isValid = true;
                 signal.reason = "Crypto: Bearish trend confirmed";
-                Print("✅ SELL: Trend<0 (", conditions.trendDirection, ")");
+                Print("🔍 Crypto: SELL signal (score=", signal.score, ", trend=", conditions.trendDirection,
+                      ", RSI=", DoubleToString(conditions.rsi, 1), ")");
             }
             // Neutral/ranging market - use RSI centerline (50)
             else if(conditions.rsi < 50) {
                 signal.direction = SIGNAL_BUY;
                 signal.isValid = true;
                 signal.reason = "Crypto: Range BUY (RSI below 50)";
-                Print("✅ BUY: Trend=0, RSI<50 (", DoubleToString(conditions.rsi, 1), ")");
+                Print("🔍 Crypto: Range BUY (score=", signal.score, ", RSI=", DoubleToString(conditions.rsi, 1), ")");
             }
             else {
                 signal.direction = SIGNAL_SELL;
                 signal.isValid = true;
                 signal.reason = "Crypto: Range SELL (RSI above 50)";
-                Print("✅ SELL: Trend=0, RSI>=50 (", DoubleToString(conditions.rsi, 1), ")");
+                Print("🔍 Crypto: Range SELL (score=", signal.score, ", RSI=", DoubleToString(conditions.rsi, 1), ")");
             }
-        } else {
-            Print("❌ Score too low: ", signal.score, " < 20");
         }
+        // No logging if score too low - reduces spam
 
         return signal;
     }
@@ -770,18 +765,14 @@ public:
                 break;
         }
 
-        Print("🔍 Adaptive: Detected ", EnumToString(instrType), " → Using ", strategyName, " Strategy");
-        Print("📊 Market: RSI=", DoubleToString(conditions.rsi, 1),
-              " Trend=", conditions.trendDirection,
-              " MACD=", DoubleToString(conditions.macd, 5));
-
         // Generate signal from selected strategy
         TradeSignal signal = (*selectedStrategy).CheckSignal(conditions);
 
-        Print("📤 ", strategyName, " returned: direction=", EnumToString(signal.direction),
-              ", score=", signal.score,
-              ", isValid=", (signal.isValid ? "true" : "false"),
-              ", reason=\"", signal.reason, "\"");
+        // Only log valid signals to reduce spam
+        if(signal.isValid && signal.direction != SIGNAL_NONE) {
+            Print("📊 ", strategyName, ": ", EnumToString(signal.direction),
+                  " (score=", signal.score, ", RSI=", DoubleToString(conditions.rsi, 1), ")");
+        }
 
         // Keep original source for strategy-specific threshold validation
         // DO NOT overwrite signal.source - it's needed for proper validation

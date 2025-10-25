@@ -620,8 +620,17 @@ public:
     void OnTick() {
         if(!m_initialized) return;
 
-        // Throttle updates (every 1 second)
-        if(TimeCurrent() - m_lastUpdate < 1) return;
+        // Throttle updates - check signals less frequently to reduce log spam
+        // Crypto/scalping: every 5 seconds, others: every 10 seconds
+        int throttleInterval = 10; // Default 10 seconds
+        if(m_activeStrategy != NULL) {
+            ENUM_STRATEGY_MODE strategyType = (*m_activeStrategy).GetType();
+            if(strategyType == STRATEGY_CRYPTO || strategyType == STRATEGY_SCALPING) {
+                throttleInterval = 5; // More frequent for fast strategies
+            }
+        }
+
+        if(TimeCurrent() - m_lastUpdate < throttleInterval) return;
         m_lastUpdate = TimeCurrent();
 
         // Analyze market
