@@ -32,7 +32,7 @@ input double               InpMaxDrawdown = 20.0;                 // Max total d
 input int                  InpMaxPositions = 5;                   // Max pozycji
 
 input group "═══════ 🎲 PARAMETRY STRATEGII ═══════"
-input int                  InpMinSignalScore = 60;                // Min siła sygnału (0-100)
+input int                  InpMinSignalScore = 20;                // Min siła sygnału (0-100)
 input double               InpMinRiskReward = 1.5;                // Min R:R ratio
 
 input group "═══════ 🛡️ ZABEZPIECZENIA ═══════"
