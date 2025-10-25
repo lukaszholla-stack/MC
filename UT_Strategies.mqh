@@ -706,10 +706,10 @@ public:
     }
 
     virtual bool Initialize() override {
-        m_forexStrategy->Initialize();
-        m_metalStrategy->Initialize();
-        m_cryptoStrategy->Initialize();
-        m_scalpStrategy->Initialize();
+        (*m_forexStrategy).Initialize();
+        (*m_metalStrategy).Initialize();
+        (*m_cryptoStrategy).Initialize();
+        (*m_scalpStrategy).Initialize();
 
         m_initialized = true;
         Print("✅ Adaptive Strategy initialized");
@@ -739,7 +739,7 @@ public:
         }
 
         // Generate signal from selected strategy
-        TradeSignal signal = selectedStrategy->CheckSignal(conditions);
+        TradeSignal signal = (*selectedStrategy).CheckSignal(conditions);
         signal.source = STRATEGY_ADAPTIVE;  // Mark as adaptive
 
         return signal;
@@ -750,11 +750,11 @@ public:
 
         switch(instrType) {
             case INSTRUMENT_FOREX:
-                return m_forexStrategy->CalculateStopLoss(direction, entry, atr);
+                return (*m_forexStrategy).CalculateStopLoss(direction, entry, atr);
             case INSTRUMENT_METAL:
-                return m_metalStrategy->CalculateStopLoss(direction, entry, atr);
+                return (*m_metalStrategy).CalculateStopLoss(direction, entry, atr);
             case INSTRUMENT_CRYPTO:
-                return m_cryptoStrategy->CalculateStopLoss(direction, entry, atr);
+                return (*m_cryptoStrategy).CalculateStopLoss(direction, entry, atr);
             default:
                 return (direction == SIGNAL_BUY) ? entry - atr * 1.5 : entry + atr * 1.5;
         }
@@ -765,11 +765,11 @@ public:
 
         switch(instrType) {
             case INSTRUMENT_FOREX:
-                return m_forexStrategy->CalculateTakeProfit(direction, entry, sl);
+                return (*m_forexStrategy).CalculateTakeProfit(direction, entry, sl);
             case INSTRUMENT_METAL:
-                return m_metalStrategy->CalculateTakeProfit(direction, entry, sl);
+                return (*m_metalStrategy).CalculateTakeProfit(direction, entry, sl);
             case INSTRUMENT_CRYPTO:
-                return m_cryptoStrategy->CalculateTakeProfit(direction, entry, sl);
+                return (*m_cryptoStrategy).CalculateTakeProfit(direction, entry, sl);
             default: {
                 double slDistance = MathAbs(entry - sl);
                 return (direction == SIGNAL_BUY) ? entry + slDistance * 2.0 : entry - slDistance * 2.0;

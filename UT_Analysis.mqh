@@ -229,8 +229,8 @@ public:
         // Bullish divergence: price makes lower low, but RSI makes higher low
         if(later.price < earlier.price) {
             // Check RSI
-            double earlierRSI = m_techAnalysis->GetRSI(earlier.barIndex);
-            double laterRSI = m_techAnalysis->GetRSI(later.barIndex);
+            double earlierRSI = (*m_techAnalysis).GetRSI(earlier.barIndex);
+            double laterRSI = (*m_techAnalysis).GetRSI(later.barIndex);
 
             if(laterRSI > earlierRSI) {
                 divergenceType = "RSI";
@@ -238,8 +238,8 @@ public:
             }
 
             // Check MACD
-            double earlierMACD = m_techAnalysis->GetMACD(earlier.barIndex);
-            double laterMACD = m_techAnalysis->GetMACD(later.barIndex);
+            double earlierMACD = (*m_techAnalysis).GetMACD(earlier.barIndex);
+            double laterMACD = (*m_techAnalysis).GetMACD(later.barIndex);
 
             if(laterMACD > earlierMACD) {
                 if(divergenceType == "RSI") {
@@ -268,8 +268,8 @@ public:
         // Bearish divergence: price makes higher high, but RSI makes lower high
         if(later.price > earlier.price) {
             // Check RSI
-            double earlierRSI = m_techAnalysis->GetRSI(earlier.barIndex);
-            double laterRSI = m_techAnalysis->GetRSI(later.barIndex);
+            double earlierRSI = (*m_techAnalysis).GetRSI(earlier.barIndex);
+            double laterRSI = (*m_techAnalysis).GetRSI(later.barIndex);
 
             if(laterRSI < earlierRSI) {
                 divergenceType = "RSI";
@@ -277,8 +277,8 @@ public:
             }
 
             // Check MACD
-            double earlierMACD = m_techAnalysis->GetMACD(earlier.barIndex);
-            double laterMACD = m_techAnalysis->GetMACD(later.barIndex);
+            double earlierMACD = (*m_techAnalysis).GetMACD(earlier.barIndex);
+            double laterMACD = (*m_techAnalysis).GetMACD(later.barIndex);
 
             if(laterMACD < earlierMACD) {
                 if(divergenceType == "RSI") {
@@ -592,17 +592,17 @@ public:
     }
 
     bool Initialize() {
-        if(!m_techAnalysis->Initialize()) {
+        if(!(*m_techAnalysis).Initialize()) {
             Print("ERROR: Technical Analysis initialization failed");
             return false;
         }
 
-        if(!m_volumeAnalysis->Initialize()) {
+        if(!(*m_volumeAnalysis).Initialize()) {
             Print("ERROR: Volume Analysis initialization failed");
             return false;
         }
 
-        if(!m_mtfAnalysis->Initialize()) {
+        if(!(*m_mtfAnalysis).Initialize()) {
             Print("ERROR: Multi-Timeframe Analysis initialization failed");
             return false;
         }
@@ -622,62 +622,62 @@ public:
         }
 
         // Refresh all data
-        if(!m_techAnalysis->RefreshData()) {
+        if(!(*m_techAnalysis).RefreshData()) {
             Print("ERROR: Failed to refresh technical data");
             return conditions;
         }
 
-        if(!m_volumeAnalysis->RefreshData()) {
+        if(!(*m_volumeAnalysis).RefreshData()) {
             Print("WARNING: Failed to refresh volume data");
         }
 
-        if(!m_mtfAnalysis->Analyze()) {
+        if(!(*m_mtfAnalysis).Analyze()) {
             Print("WARNING: Failed to analyze multi-timeframe");
         }
 
         // Populate technical indicators
-        conditions.rsi = m_techAnalysis->GetRSI();
-        conditions.macd = m_techAnalysis->GetMACD();
-        conditions.macdSignal = m_techAnalysis->GetMACDSignal();
-        conditions.adx = m_techAnalysis->GetADX();
-        conditions.stochastic = m_techAnalysis->GetStochastic();
-        conditions.ema20 = m_techAnalysis->GetEMA20();
-        conditions.ema50 = m_techAnalysis->GetEMA50();
-        conditions.ema200 = m_techAnalysis->GetEMA200();
+        conditions.rsi = (*m_techAnalysis).GetRSI();
+        conditions.macd = (*m_techAnalysis).GetMACD();
+        conditions.macdSignal = (*m_techAnalysis).GetMACDSignal();
+        conditions.adx = (*m_techAnalysis).GetADX();
+        conditions.stochastic = (*m_techAnalysis).GetStochastic();
+        conditions.ema20 = (*m_techAnalysis).GetEMA20();
+        conditions.ema50 = (*m_techAnalysis).GetEMA50();
+        conditions.ema200 = (*m_techAnalysis).GetEMA200();
 
         // Analyze trend
-        conditions.trendDirection = m_techAnalysis->AnalyzeTrend();
-        conditions.trendStrength = m_techAnalysis->GetTrendStrength();
-        conditions.isTrending = m_techAnalysis->IsStrongTrend();
+        conditions.trendDirection = (*m_techAnalysis).AnalyzeTrend();
+        conditions.trendStrength = (*m_techAnalysis).GetTrendStrength();
+        conditions.isTrending = (*m_techAnalysis).IsStrongTrend();
 
         // Volatility (ATR-based)
-        conditions.volatility = m_techAnalysis->GetATR();
+        conditions.volatility = (*m_techAnalysis).GetATR();
         double atrMA20 = CalculateATRAverage(20);
         conditions.isVolatile = (atrMA20 > 0 && conditions.volatility > atrMA20 * 1.5);
 
         // Volume analysis
-        conditions.volume = m_volumeAnalysis->GetVolumeRatio();
+        conditions.volume = (*m_volumeAnalysis).GetVolumeRatio();
         conditions.volumeSpike = conditions.volume;
-        conditions.volumeBreakout = m_volumeAnalysis->IsVolumeSpike();
+        conditions.volumeBreakout = (*m_volumeAnalysis).IsVolumeSpike();
 
         // Divergence detection
         string divType = "";
-        conditions.hasBullishDivergence = m_divergenceDetector->DetectBullishDivergence(divType);
+        conditions.hasBullishDivergence = (*m_divergenceDetector).DetectBullishDivergence(divType);
         if(conditions.hasBullishDivergence) {
             conditions.divergenceType = divType;
         }
 
         divType = "";
-        conditions.hasBearishDivergence = m_divergenceDetector->DetectBearishDivergence(divType);
+        conditions.hasBearishDivergence = (*m_divergenceDetector).DetectBearishDivergence(divType);
         if(conditions.hasBearishDivergence) {
             conditions.divergenceType = divType;
         }
 
         // Multi-timeframe
-        conditions.h4Trend = m_mtfAnalysis->GetH4Trend();
-        conditions.d1Trend = m_mtfAnalysis->GetD1Trend();
-        conditions.w1Trend = m_mtfAnalysis->GetW1Trend();
-        conditions.trendAlignment = m_mtfAnalysis->GetTrendAlignment();
+        conditions.h4Trend = (*m_mtfAnalysis).GetH4Trend();
+        conditions.d1Trend = (*m_mtfAnalysis).GetD1Trend();
+        conditions.w1Trend = (*m_mtfAnalysis).GetW1Trend();
+        conditions.trendAlignment = (*m_mtfAnalysis).GetTrendAlignment();
 
         // Market phase
         conditions.phase = DetermineMarketPhase(conditions);
@@ -695,7 +695,7 @@ private:
     double CalculateATRAverage(int period) {
         double sum = 0;
         for(int i = 0; i < period; i++) {
-            sum += m_techAnalysis->GetATR(i);
+            sum += (*m_techAnalysis).GetATR(i);
         }
         return (period > 0) ? sum / period : 0;
     }
