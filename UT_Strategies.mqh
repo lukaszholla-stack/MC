@@ -467,7 +467,24 @@ public:
         m_type = STRATEGY_SCALPING;
         m_maxPositions = 20;
         m_targetProfitUSD = 1.50;
-        m_maxSpreadPoints = 20;
+
+        // Set max spread based on instrument type
+        ENUM_INSTRUMENT_TYPE instrType = DetectInstrumentType(_Symbol);
+        switch(instrType) {
+            case INSTRUMENT_FOREX:
+                m_maxSpreadPoints = 20;    // 2 pips for forex
+                break;
+            case INSTRUMENT_METAL:
+                m_maxSpreadPoints = 50;    // 5 pips for gold/silver
+                break;
+            case INSTRUMENT_CRYPTO:
+                m_maxSpreadPoints = 2000;  // 20 USD for BTC (acceptable 0.02% spread)
+                break;
+            default:
+                m_maxSpreadPoints = 50;
+                break;
+        }
+
         m_signalCooldown = 5;
         m_activeCount = 0;
         m_lastBid = 0;
@@ -495,6 +512,8 @@ public:
         Print("✅ Scalping Strategy initialized");
         Print("   Max Positions: ", m_maxPositions);
         Print("   Target per trade: $", m_targetProfitUSD);
+        Print("   Max Spread: ", m_maxSpreadPoints, " points");
+        Print("   Cooldown: ", m_signalCooldown, " seconds");
         Print("   Micro Account Mode: ", m_isMicroAccount ? "YES" : "NO");
 
         m_initialized = true;
