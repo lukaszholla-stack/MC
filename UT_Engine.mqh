@@ -589,6 +589,17 @@ public:
         Print("  ULTIMATE TRADER EA - INITIALIZING");
         Print("════════════════════════════════════════");
 
+        // Initialize global symbol info
+        if(!g_symbol.Name(_Symbol)) {
+            Print("❌ Failed to initialize symbol: ", _Symbol);
+            return false;
+        }
+        g_symbol.Refresh();
+        g_symbol.RefreshRates();
+        Print("✅ Symbol initialized: ", _Symbol);
+        Print("   Bid: ", g_symbol.Bid(), " | Ask: ", g_symbol.Ask());
+        Print("   Point: ", g_symbol.Point(), " | Digits: ", g_symbol.Digits());
+
         // Initialize managers
         double risk = (mode == MODE_SAFE) ? 0.5 : (mode == MODE_BALANCED) ? 1.0 : 2.0;
         double maxDaily = (mode == MODE_SAFE) ? 3.0 : (mode == MODE_BALANCED) ? 5.0 : 10.0;
