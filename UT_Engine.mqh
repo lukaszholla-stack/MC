@@ -260,6 +260,16 @@ public:
         request.magic = 777001;
         request.comment = EnumToString(signal.source);
 
+        // Pre-order diagnostics
+        Print("📤 ORDER REQUEST:");
+        Print("   Symbol: ", request.symbol);
+        Print("   Type: ", (request.type == ORDER_TYPE_BUY ? "BUY" : "SELL"));
+        Print("   Volume: ", request.volume);
+        Print("   Entry: ", request.price);
+        Print("   SL: ", request.sl, " (", DoubleToString(MathAbs(request.price - request.sl)/_Point, 1), " pips)");
+        Print("   TP: ", request.tp, " (", DoubleToString(MathAbs(request.tp - request.price)/_Point, 1), " pips)");
+        Print("   R:R: ", DoubleToString(signal.riskRewardRatio, 2));
+
         // Retry mechanism for TRADE_CONTEXT_BUSY
         int maxRetries = 3;
         for(int attempt = 0; attempt < maxRetries; attempt++) {
@@ -271,9 +281,8 @@ public:
             bool success = OrderSend(request, result);
 
             // Detailed diagnostics
-            Print("📋 Order attempt ", attempt + 1, ":");
+            Print("📋 Server response (attempt ", attempt + 1, "):");
             Print("   RetCode: ", result.retcode, " (", GetTradeRetcodeDescription(result.retcode), ")");
-            Print("   Volume: ", result.volume, " | Price: ", result.price);
             Print("   Comment: ", result.comment);
 
             if(success && result.retcode == TRADE_RETCODE_DONE) {
