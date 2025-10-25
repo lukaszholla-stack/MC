@@ -243,7 +243,21 @@ public:
             return false;
         }
 
+        // Refresh symbol prices before getting entry
+        g_symbol.RefreshRates();
+
         double entry = (signal.direction == SIGNAL_BUY) ? g_symbol.Ask() : g_symbol.Bid();
+
+        // Debug: verify we got valid prices
+        if(entry <= 0) {
+            Print("❌ CRITICAL: Invalid entry price (", entry, ")");
+            Print("   g_symbol.Bid() = ", g_symbol.Bid());
+            Print("   g_symbol.Ask() = ", g_symbol.Ask());
+            Print("   g_symbol.Name() = ", g_symbol.Name());
+            Print("   SymbolInfoDouble BID = ", SymbolInfoDouble(_Symbol, SYMBOL_BID));
+            Print("   SymbolInfoDouble ASK = ", SymbolInfoDouble(_Symbol, SYMBOL_ASK));
+            return false;
+        }
 
         // Prepare trade request
         MqlTradeRequest request = {};
