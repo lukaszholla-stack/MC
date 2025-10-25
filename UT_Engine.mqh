@@ -376,9 +376,45 @@ public:
             double currentTP = g_position.TakeProfit();
             double volume = g_position.Volume();
             bool isBuy = (g_position.Type() == POSITION_TYPE_BUY);
+            string comment = g_position.Comment();
 
             double currentPrice = isBuy ? g_symbol.Bid() : g_symbol.Ask();
 
+            // Calculate profit in USD
+            double profitUSD = g_position.Profit();
+
+            // FAST-CLOSE LOGIC: For scalping and crypto strategies
+            // Close entire position at minimal profit (not waiting for full TP)
+            // Check if this is a fast-close strategy (scalping or crypto)
+            bool isFastCloseStrategy = (StringFind(comment, "SCALPING") >= 0 ||
+                                       StringFind(comment, "CRYPTO") >= 0 ||
+                                       StringFind(comment, "Scalp") >= 0);
+
+            if(isFastCloseStrategy) {
+                double targetProfit = 1.50;  // $1.50 minimum profit for fast strategies
+
+                if(profitUSD >= targetProfit) {
+                    // Close entire position
+                    MqlTradeRequest req = {};
+                    MqlTradeResult res = {};
+
+                    req.action = TRADE_ACTION_DEAL;
+                    req.position = ticket;
+                    req.symbol = _Symbol;
+                    req.volume = volume;
+                    req.type = isBuy ? ORDER_TYPE_SELL : ORDER_TYPE_BUY;
+                    req.price = currentPrice;
+                    req.deviation = 10;
+
+                    if(OrderSend(req, res)) {
+                        Print("💰 FAST-CLOSE: Ticket ", ticket, " | Strategy: ", comment,
+                              " | Profit: $", DoubleToString(profitUSD, 2));
+                    }
+                }
+                continue;  // Skip regular position management for fast-close strategies
+            }
+
+            // REGULAR POSITION MANAGEMENT (non-scalping)
             // Calculate profit in pips
             double profitPips = isBuy ?
                                (currentPrice - openPrice) / (_Point * 10) :
