@@ -166,6 +166,15 @@ public:
             return false;
         }
 
+        // Check if there's already an open position on this symbol
+        // This prevents hitting broker volume limits
+        for(int i = 0; i < PositionsTotal(); i++) {
+            if(PositionGetSymbol(i) == _Symbol) {
+                // Don't spam logs - only reject silently
+                return false;
+            }
+        }
+
         // Check score - use strategy-specific threshold
         int requiredScore = GetMinScoreForStrategy(signal.source);
         if(signal.score < requiredScore) {
