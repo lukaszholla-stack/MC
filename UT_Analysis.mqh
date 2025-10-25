@@ -126,20 +126,59 @@ public:
         return true;
     }
 
-    // Get individual indicator values
-    double GetRSI(int shift = 0) { return m_rsiBuffer[shift]; }
-    double GetMACD(int shift = 0) { return m_macdMain[shift]; }
-    double GetMACDSignal(int shift = 0) { return m_macdSignal[shift]; }
-    double GetADX(int shift = 0) { return m_adxBuffer[shift]; }
-    double GetStochastic(int shift = 0) { return m_stochMain[shift]; }
-    double GetStochSignal(int shift = 0) { return m_stochSignal[shift]; }
-    double GetBBUpper(int shift = 0) { return m_bbUpper[shift]; }
-    double GetBBMiddle(int shift = 0) { return m_bbMiddle[shift]; }
-    double GetBBLower(int shift = 0) { return m_bbLower[shift]; }
-    double GetEMA20(int shift = 0) { return m_ema20Buffer[shift]; }
-    double GetEMA50(int shift = 0) { return m_ema50Buffer[shift]; }
-    double GetEMA200(int shift = 0) { return m_ema200Buffer[shift]; }
-    double GetATR(int shift = 0) { return m_atrBuffer[shift]; }
+    // Get individual indicator values (with safety checks)
+    double GetRSI(int shift = 0) {
+        if(ArraySize(m_rsiBuffer) <= shift) return 50.0;
+        return m_rsiBuffer[shift];
+    }
+    double GetMACD(int shift = 0) {
+        if(ArraySize(m_macdMain) <= shift) return 0.0;
+        return m_macdMain[shift];
+    }
+    double GetMACDSignal(int shift = 0) {
+        if(ArraySize(m_macdSignal) <= shift) return 0.0;
+        return m_macdSignal[shift];
+    }
+    double GetADX(int shift = 0) {
+        if(ArraySize(m_adxBuffer) <= shift) return 0.0;
+        return m_adxBuffer[shift];
+    }
+    double GetStochastic(int shift = 0) {
+        if(ArraySize(m_stochMain) <= shift) return 50.0;
+        return m_stochMain[shift];
+    }
+    double GetStochSignal(int shift = 0) {
+        if(ArraySize(m_stochSignal) <= shift) return 50.0;
+        return m_stochSignal[shift];
+    }
+    double GetBBUpper(int shift = 0) {
+        if(ArraySize(m_bbUpper) <= shift) return 0.0;
+        return m_bbUpper[shift];
+    }
+    double GetBBMiddle(int shift = 0) {
+        if(ArraySize(m_bbMiddle) <= shift) return 0.0;
+        return m_bbMiddle[shift];
+    }
+    double GetBBLower(int shift = 0) {
+        if(ArraySize(m_bbLower) <= shift) return 0.0;
+        return m_bbLower[shift];
+    }
+    double GetEMA20(int shift = 0) {
+        if(ArraySize(m_ema20Buffer) <= shift) return 0.0;
+        return m_ema20Buffer[shift];
+    }
+    double GetEMA50(int shift = 0) {
+        if(ArraySize(m_ema50Buffer) <= shift) return 0.0;
+        return m_ema50Buffer[shift];
+    }
+    double GetEMA200(int shift = 0) {
+        if(ArraySize(m_ema200Buffer) <= shift) return 0.0;
+        return m_ema200Buffer[shift];
+    }
+    double GetATR(int shift = 0) {
+        if(ArraySize(m_atrBuffer) <= shift) return 0.0;
+        return m_atrBuffer[shift];
+    }
 
     // Analysis functions
     int AnalyzeTrend() {

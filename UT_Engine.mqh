@@ -405,7 +405,17 @@ private:
     void CreateLabel(string name, int x, int y, string text, color clr, int size) {
         string objName = m_prefix + name;
 
-        ObjectCreate(0, objName, OBJ_LABEL, 0, 0, 0);
+        // Delete if exists
+        if(ObjectFind(0, objName) >= 0) {
+            ObjectDelete(0, objName);
+        }
+
+        // Create new
+        if(!ObjectCreate(0, objName, OBJ_LABEL, 0, 0, 0)) {
+            Print("ERROR: Failed to create label: ", objName);
+            return;
+        }
+
         ObjectSetInteger(0, objName, OBJPROP_XDISTANCE, x);
         ObjectSetInteger(0, objName, OBJPROP_YDISTANCE, y);
         ObjectSetInteger(0, objName, OBJPROP_COLOR, clr);
@@ -413,6 +423,12 @@ private:
         ObjectSetString(0, objName, OBJPROP_FONT, "Arial");
         ObjectSetString(0, objName, OBJPROP_TEXT, text);
         ObjectSetInteger(0, objName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+        ObjectSetInteger(0, objName, OBJPROP_BACK, false);  // Draw in foreground
+        ObjectSetInteger(0, objName, OBJPROP_SELECTABLE, false);
+        ObjectSetInteger(0, objName, OBJPROP_SELECTED, false);
+        ObjectSetInteger(0, objName, OBJPROP_HIDDEN, true);
+
+        ChartRedraw(0);  // Force chart redraw
     }
 
     void UpdateLabel(string name, string text) {
