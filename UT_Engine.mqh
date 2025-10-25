@@ -308,7 +308,6 @@ public:
             case TRADE_RETCODE_INVALID: return "Invalid request";
             case TRADE_RETCODE_REJECT: return "Request rejected";
             case TRADE_RETCODE_CANCEL: return "Request canceled";
-            case TRADE_RETCODE_PLACED: return "Order placed";
             case TRADE_RETCODE_INVALID_VOLUME: return "Invalid volume";
             case TRADE_RETCODE_INVALID_PRICE: return "Invalid price";
             case TRADE_RETCODE_INVALID_STOPS: return "Invalid stops";
