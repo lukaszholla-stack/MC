@@ -232,6 +232,17 @@ public:
     }
 
     bool OpenPosition(TradeSignal& signal) {
+        // Check if trading is allowed
+        if(!TerminalInfoInteger(TERMINAL_TRADE_ALLOWED)) {
+            Print("❌ Trading not allowed in terminal");
+            return false;
+        }
+
+        if(!MQLInfoInteger(MQL_TRADE_ALLOWED)) {
+            Print("❌ Automated trading disabled for EA");
+            return false;
+        }
+
         double entry = (signal.direction == SIGNAL_BUY) ? g_symbol.Ask() : g_symbol.Bid();
 
         // Prepare trade request
@@ -249,16 +260,78 @@ public:
         request.magic = 777001;
         request.comment = EnumToString(signal.source);
 
-        if(!OrderSend(request, result)) {
-            Print("❌ Order failed: ", GetLastError());
-            return false;
+        // Retry mechanism for TRADE_CONTEXT_BUSY
+        int maxRetries = 3;
+        for(int attempt = 0; attempt < maxRetries; attempt++) {
+            if(attempt > 0) {
+                Sleep(100); // Wait 100ms before retry
+                Print("🔄 Retry attempt ", attempt + 1, "/", maxRetries);
+            }
+
+            bool success = OrderSend(request, result);
+
+            // Detailed diagnostics
+            Print("📋 Order attempt ", attempt + 1, ":");
+            Print("   RetCode: ", result.retcode, " (", GetTradeRetcodeDescription(result.retcode), ")");
+            Print("   Volume: ", result.volume, " | Price: ", result.price);
+            Print("   Comment: ", result.comment);
+
+            if(success && result.retcode == TRADE_RETCODE_DONE) {
+                Print("✅ Position opened: ", signal.direction == SIGNAL_BUY ? "BUY" : "SELL");
+                Print("   Ticket: ", result.order);
+                Print("   Entry: ", entry, " | SL: ", signal.stopLoss, " | TP: ", signal.takeProfit);
+                Print("   Lot: ", signal.lotSize, " | R:R: ", DoubleToString(signal.riskRewardRatio, 2));
+                return true;
+            }
+
+            // Check if error is retriable
+            if(result.retcode != TRADE_RETCODE_TIMEOUT &&
+               result.retcode != TRADE_RETCODE_PRICE_CHANGED &&
+               result.retcode != TRADE_RETCODE_REQUOTE) {
+                break; // Don't retry for other errors
+            }
         }
 
-        Print("✅ Position opened: ", signal.direction == SIGNAL_BUY ? "BUY" : "SELL");
-        Print("   Entry: ", entry, " | SL: ", signal.stopLoss, " | TP: ", signal.takeProfit);
-        Print("   Lot: ", signal.lotSize, " | R:R: ", DoubleToString(signal.riskRewardRatio, 2));
+        Print("❌ Order FAILED after ", maxRetries, " attempts");
+        Print("   Error: ", GetLastError());
+        Print("   Final RetCode: ", result.retcode, " - ", result.comment);
+        return false;
+    }
 
-        return true;
+    string GetTradeRetcodeDescription(uint retcode) {
+        switch(retcode) {
+            case TRADE_RETCODE_DONE: return "Request completed";
+            case TRADE_RETCODE_PLACED: return "Order placed";
+            case TRADE_RETCODE_DONE_PARTIAL: return "Partial fill";
+            case TRADE_RETCODE_ERROR: return "Common error";
+            case TRADE_RETCODE_TIMEOUT: return "Timeout";
+            case TRADE_RETCODE_INVALID: return "Invalid request";
+            case TRADE_RETCODE_REJECT: return "Request rejected";
+            case TRADE_RETCODE_CANCEL: return "Request canceled";
+            case TRADE_RETCODE_PLACED: return "Order placed";
+            case TRADE_RETCODE_INVALID_VOLUME: return "Invalid volume";
+            case TRADE_RETCODE_INVALID_PRICE: return "Invalid price";
+            case TRADE_RETCODE_INVALID_STOPS: return "Invalid stops";
+            case TRADE_RETCODE_TRADE_DISABLED: return "Trade disabled";
+            case TRADE_RETCODE_MARKET_CLOSED: return "Market closed";
+            case TRADE_RETCODE_NO_MONEY: return "Not enough money";
+            case TRADE_RETCODE_PRICE_CHANGED: return "Price changed";
+            case TRADE_RETCODE_PRICE_OFF: return "No prices";
+            case TRADE_RETCODE_INVALID_EXPIRATION: return "Invalid expiration";
+            case TRADE_RETCODE_ORDER_CHANGED: return "Order changed";
+            case TRADE_RETCODE_TOO_MANY_REQUESTS: return "Too many requests";
+            case TRADE_RETCODE_NO_CHANGES: return "No changes";
+            case TRADE_RETCODE_SERVER_DISABLES_AT: return "AutoTrading disabled by server";
+            case TRADE_RETCODE_CLIENT_DISABLES_AT: return "AutoTrading disabled by client";
+            case TRADE_RETCODE_LOCKED: return "Request locked";
+            case TRADE_RETCODE_FROZEN: return "Order frozen";
+            case TRADE_RETCODE_INVALID_FILL: return "Invalid fill type";
+            case TRADE_RETCODE_CONNECTION: return "No connection";
+            case TRADE_RETCODE_ONLY_REAL: return "Only for real accounts";
+            case TRADE_RETCODE_LIMIT_ORDERS: return "Orders limit reached";
+            case TRADE_RETCODE_LIMIT_VOLUME: return "Volume limit reached";
+            default: return "Unknown error";
+        }
     }
 
     void ManagePositions() {
