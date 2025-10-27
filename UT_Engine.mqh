@@ -431,10 +431,13 @@ public:
 
             // Trailing stop logic
             if(m_useTrailing && profitPercent >= m_trailingActivation) {
-                double newSL = CalculateTrailingStop(isBuy, currentPrice, currentSL);
+                double newSL = CalculateTrailingStop(isBuy, currentPrice, currentSL, openPrice);
 
                 if((isBuy && newSL > currentSL) || (!isBuy && newSL < currentSL)) {
                     ModifyStopLoss(ticket, newSL);
+                    Print("📈 Trailing activated for ticket ", ticket, ": SL moved to ", newSL,
+                          " (profit: ", DoubleToString(profitPips, 1), " pips, ",
+                          DoubleToString(profitPercent * 100, 1), "% of TP)");
                 }
             }
 
@@ -464,9 +467,17 @@ private:
         return OrderSend(request, result);
     }
 
-    double CalculateTrailingStop(bool isBuy, double currentPrice, double currentSL) {
-        double atr = g_buffer_atr[0];
-        double trailDistance = atr * 0.5;  // 50% of ATR
+    double CalculateTrailingStop(bool isBuy, double currentPrice, double currentSL, double openPrice) {
+        // Use simple % of current profit as trail distance
+        // This is more reliable than ATR (which may be unavailable)
+        double profitDistance = MathAbs(currentPrice - openPrice);
+        double trailDistance = profitDistance * 0.25;  // Trail at 25% of profit distance
+
+        // Minimum trail distance: 10 points
+        double minDistance = 10 * _Point;
+        if(trailDistance < minDistance) {
+            trailDistance = minDistance;
+        }
 
         if(isBuy) {
             return currentPrice - trailDistance;
