@@ -333,39 +333,59 @@ public:
 
         signal.CalculateScore();
 
-        // Only log if score meets threshold (reduces spam)
-        if(signal.score >= 20) {
-            // Bullish trend - trade with trend
-            if(conditions.trendDirection > 0) {
+        // IMPROVED LOGIC: Only trade clear setups with proper confirmation
+        if(signal.score >= 30) {  // Raised from 20 to 30 for better quality
+
+            // STRATEGY 1: Mean reversion on RSI extremes (high probability)
+            if(conditions.rsi < 30 && conditions.trendDirection >= 0) {
                 signal.direction = SIGNAL_BUY;
                 signal.isValid = true;
-                signal.reason = "Crypto: Bullish trend confirmed";
-                Print("🔍 Crypto: BUY signal (score=", signal.score, ", trend=", conditions.trendDirection,
-                      ", RSI=", DoubleToString(conditions.rsi, 1), ")");
+                signal.reason = "Crypto: Oversold bounce";
+                Print("🔍 Crypto: BUY (oversold) | Score=", signal.score, " | RSI=", DoubleToString(conditions.rsi, 1),
+                      " | Trend=", conditions.trendDirection);
             }
-            // Bearish trend - trade with trend
-            else if(conditions.trendDirection < 0) {
+            else if(conditions.rsi > 70 && conditions.trendDirection <= 0) {
                 signal.direction = SIGNAL_SELL;
                 signal.isValid = true;
-                signal.reason = "Crypto: Bearish trend confirmed";
-                Print("🔍 Crypto: SELL signal (score=", signal.score, ", trend=", conditions.trendDirection,
-                      ", RSI=", DoubleToString(conditions.rsi, 1), ")");
+                signal.reason = "Crypto: Overbought reversal";
+                Print("🔍 Crypto: SELL (overbought) | Score=", signal.score, " | RSI=", DoubleToString(conditions.rsi, 1),
+                      " | Trend=", conditions.trendDirection);
             }
-            // Neutral/ranging market - use RSI centerline (50)
-            else if(conditions.rsi < 50) {
+
+            // STRATEGY 2: Strong trend with momentum (only if RSI not extreme)
+            else if(conditions.trendDirection > 0 && conditions.rsi >= 40 && conditions.rsi <= 60) {
                 signal.direction = SIGNAL_BUY;
                 signal.isValid = true;
-                signal.reason = "Crypto: Range BUY (RSI below 50)";
-                Print("🔍 Crypto: Range BUY (score=", signal.score, ", RSI=", DoubleToString(conditions.rsi, 1), ")");
+                signal.reason = "Crypto: Bullish momentum";
+                Print("🔍 Crypto: BUY (trend) | Score=", signal.score, " | RSI=", DoubleToString(conditions.rsi, 1),
+                      " | Trend=", conditions.trendDirection);
             }
-            else {
+            else if(conditions.trendDirection < 0 && conditions.rsi >= 40 && conditions.rsi <= 60) {
                 signal.direction = SIGNAL_SELL;
                 signal.isValid = true;
-                signal.reason = "Crypto: Range SELL (RSI above 50)";
-                Print("🔍 Crypto: Range SELL (score=", signal.score, ", RSI=", DoubleToString(conditions.rsi, 1), ")");
+                signal.reason = "Crypto: Bearish momentum";
+                Print("🔍 Crypto: SELL (trend) | Score=", signal.score, " | RSI=", DoubleToString(conditions.rsi, 1),
+                      " | Trend=", conditions.trendDirection);
+            }
+
+            // STRATEGY 3: Volume breakout in direction of short-term momentum
+            else if(conditions.volumeSpike > 2.0 && signal.momentumScore > 12) {
+                // Use MACD for momentum direction
+                double macdHistogram = conditions.macd - conditions.macdSignal;
+                if(macdHistogram > 0) {
+                    signal.direction = SIGNAL_BUY;
+                    signal.isValid = true;
+                    signal.reason = "Crypto: Volume breakout UP";
+                    Print("🔍 Crypto: BUY (breakout) | Score=", signal.score, " | Volume=", DoubleToString(conditions.volumeSpike, 2));
+                }
+                else if(macdHistogram < 0) {
+                    signal.direction = SIGNAL_SELL;
+                    signal.isValid = true;
+                    signal.reason = "Crypto: Volume breakout DOWN";
+                    Print("🔍 Crypto: SELL (breakout) | Score=", signal.score, " | Volume=", DoubleToString(conditions.volumeSpike, 2));
+                }
             }
         }
-        // No logging if score too low - reduces spam
 
         return signal;
     }

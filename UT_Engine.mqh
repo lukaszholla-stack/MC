@@ -166,7 +166,7 @@ public:
     // Get minimum score threshold for specific strategy
     int GetMinScoreForStrategy(ENUM_STRATEGY_MODE strategy) {
         switch(strategy) {
-            case STRATEGY_CRYPTO:    return 20;  // Crypto: Low threshold due to high volatility
+            case STRATEGY_CRYPTO:    return 30;  // Crypto: Medium threshold for quality (was 20 - too loose!)
             case STRATEGY_SCALPING:  return 40;  // Scalping: Medium threshold for quick trades
             case STRATEGY_FOREX:     return 60;  // Forex: High threshold for quality signals
             case STRATEGY_METAL:     return 60;  // Metal: High threshold for stability
@@ -250,9 +250,9 @@ public:
         m_useTrailing = true;
         m_useBreakeven = true;
         m_usePartialClose = true;
-        m_trailingActivation = 0.2;    // 20% (was 50% - too late!)
-        m_breakevenActivation = 0.1;   // 10% (was 30% - too late!)
-        m_partialCloseLevel = 0.6;     // 60% (was 70%)
+        m_trailingActivation = 0.05;   // 5% (ultra-aggressive! was 20%)
+        m_breakevenActivation = 0.05;  // 5% (ultra-aggressive! was 10%)
+        m_partialCloseLevel = 0.5;     // 50% (earlier)
         m_scalpingMode = false;
         m_scalpTargetUSD = 1.50;
     }
@@ -362,6 +362,7 @@ public:
                 Print("   Ticket: ", result.order);
                 Print("   Entry: ", entry, " | SL: ", actualSL, " | TP: ", actualTP);
                 Print("   Lot: ", signal.lotSize, " | R:R: ", DoubleToString(signal.riskRewardRatio, 2));
+                Print("   Reason: ", signal.reason, " | Source: ", EnumToString(signal.source));
                 return true;
             }
 
@@ -513,10 +514,10 @@ private:
     }
 
     double CalculateTrailingStop(bool isBuy, double currentPrice, double currentSL, double openPrice) {
-        // Use simple % of current profit as trail distance
-        // This is more reliable than ATR (which may be unavailable)
+        // Ultra-aggressive trailing: lock in most of the profit!
+        // Keep SL very close to current price to secure gains
         double profitDistance = MathAbs(currentPrice - openPrice);
-        double trailDistance = profitDistance * 0.25;  // Trail at 25% of profit distance
+        double trailDistance = profitDistance * 0.5;  // Trail at 50% of profit distance (was 25%)
 
         // Minimum trail distance: 10 points
         double minDistance = 10 * _Point;
