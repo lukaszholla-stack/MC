@@ -217,6 +217,10 @@ private:
     double m_breakevenActivation; // % of TP to activate breakeven
     double m_partialCloseLevel;   // % of TP to partial close
 
+    // Scalping mode
+    bool m_scalpingMode;
+    double m_scalpTargetUSD;
+
 public:
     CPositionManager() {
         m_useTrailing = true;
@@ -225,6 +229,8 @@ public:
         m_trailingActivation = 0.5;    // 50%
         m_breakevenActivation = 0.3;   // 30%
         m_partialCloseLevel = 0.7;     // 70%
+        m_scalpingMode = false;
+        m_scalpTargetUSD = 1.50;
     }
 
     bool Initialize(bool trailing, bool breakeven, bool partial) {
@@ -238,6 +244,11 @@ public:
         Print("   Partial Close: ", m_usePartialClose ? "ON" : "OFF");
 
         return true;
+    }
+
+    void SetScalpingMode(bool enabled, double targetUSD = 1.50) {
+        m_scalpingMode = enabled;
+        m_scalpTargetUSD = targetUSD;
     }
 
     bool OpenPosition(TradeSignal& signal) {
@@ -626,8 +637,6 @@ private:
     // State
     bool m_initialized;
     datetime m_lastUpdate;
-    bool m_scalpingMode;
-    double m_scalpTargetUSD;
 
 public:
     CEngine() {
@@ -639,8 +648,6 @@ public:
         m_activeStrategy = NULL;
         m_initialized = false;
         m_lastUpdate = 0;
-        m_scalpingMode = false;
-        m_scalpTargetUSD = 1.50;
     }
 
     ~CEngine() {
@@ -657,10 +664,6 @@ public:
         Print("════════════════════════════════════════");
         Print("  ULTIMATE TRADER EA - INITIALIZING");
         Print("════════════════════════════════════════");
-
-        // Store scalping settings
-        m_scalpingMode = scalpingMode;
-        m_scalpTargetUSD = scalpTargetUSD;
 
         // Initialize global symbol info
         if(!g_symbol.Name(_Symbol)) {
@@ -684,6 +687,9 @@ public:
         if(!(*m_signalManager).Initialize(minScore, 1.5)) return false;
 
         if(!(*m_positionManager).Initialize(true, true, true)) return false;
+
+        // Set scalping mode
+        (*m_positionManager).SetScalpingMode(scalpingMode, scalpTargetUSD);
 
         if(!(*m_marketAnalyzer).Initialize()) return false;
 
