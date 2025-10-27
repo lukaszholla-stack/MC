@@ -568,6 +568,17 @@ public:
             Print("🔥 Scalping SELL: Momentum=", DoubleToString(microMomentum, 2),
                   " pips, Spread=", DoubleToString(currentSpread, 1));
         }
+        else {
+            // Log why no signal (momentum too low) - once per minute
+            static datetime lastMomentumLog = 0;
+            if(TimeCurrent() - lastMomentumLog > 60) {
+                Print("⚠️ Scalping: Momentum too low (", DoubleToString(microMomentum, 2),
+                      " pips, need > ", DoubleToString(threshold, 1),
+                      " or < ", DoubleToString(-threshold, 1), " | Spread: ",
+                      DoubleToString(currentSpread, 1), " points)");
+                lastMomentumLog = TimeCurrent();
+            }
+        }
 
         return signal;
     }
