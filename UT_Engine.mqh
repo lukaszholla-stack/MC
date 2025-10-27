@@ -279,6 +279,20 @@ public:
             return false;
         }
 
+        // Recalculate SL/TP based on fresh entry price
+        // Maintain the same distances as originally calculated, but apply to current price
+        double slDistance = MathAbs(signal.entryPrice - signal.stopLoss);
+        double tpDistance = MathAbs(signal.takeProfit - signal.entryPrice);
+
+        double actualSL, actualTP;
+        if(signal.direction == SIGNAL_BUY) {
+            actualSL = entry - slDistance;  // SL below entry for BUY
+            actualTP = entry + tpDistance;  // TP above entry for BUY
+        } else {
+            actualSL = entry + slDistance;  // SL above entry for SELL
+            actualTP = entry - tpDistance;  // TP below entry for SELL
+        }
+
         // Prepare trade request
         MqlTradeRequest request = {};
         MqlTradeResult result = {};
@@ -288,8 +302,8 @@ public:
         request.volume = signal.lotSize;
         request.type = (signal.direction == SIGNAL_BUY) ? ORDER_TYPE_BUY : ORDER_TYPE_SELL;
         request.price = entry;
-        request.sl = signal.stopLoss;
-        request.tp = signal.takeProfit;
+        request.sl = actualSL;
+        request.tp = actualTP;
         request.deviation = 10;
         request.magic = 777001;
         request.comment = EnumToString(signal.source);
@@ -322,7 +336,7 @@ public:
             if(success && result.retcode == TRADE_RETCODE_DONE) {
                 Print("✅ Position opened: ", signal.direction == SIGNAL_BUY ? "BUY" : "SELL");
                 Print("   Ticket: ", result.order);
-                Print("   Entry: ", entry, " | SL: ", signal.stopLoss, " | TP: ", signal.takeProfit);
+                Print("   Entry: ", entry, " | SL: ", actualSL, " | TP: ", actualTP);
                 Print("   Lot: ", signal.lotSize, " | R:R: ", DoubleToString(signal.riskRewardRatio, 2));
                 return true;
             }
