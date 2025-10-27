@@ -250,9 +250,9 @@ public:
         m_useTrailing = true;
         m_useBreakeven = true;
         m_usePartialClose = true;
-        m_trailingActivation = 0.5;    // 50%
-        m_breakevenActivation = 0.3;   // 30%
-        m_partialCloseLevel = 0.7;     // 70%
+        m_trailingActivation = 0.2;    // 20% (was 50% - too late!)
+        m_breakevenActivation = 0.1;   // 10% (was 30% - too late!)
+        m_partialCloseLevel = 0.6;     // 60% (was 70%)
         m_scalpingMode = false;
         m_scalpTargetUSD = 1.50;
     }

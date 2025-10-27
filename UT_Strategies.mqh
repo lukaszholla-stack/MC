@@ -371,8 +371,9 @@ public:
     }
 
     virtual double CalculateStopLoss(ENUM_SIGNAL_DIRECTION direction, double entry, double atr) override {
-        // Crypto: SL = 2.0x ATR (very volatile!)
-        double slDistance = atr * 2.0;
+        // Crypto: More realistic SL = 1.0x ATR (was 2.0x - too wide!)
+        // Still allows volatility but keeps it manageable
+        double slDistance = atr * 1.0;
 
         if(direction == SIGNAL_BUY) {
             return entry - slDistance;
@@ -382,9 +383,10 @@ public:
     }
 
     virtual double CalculateTakeProfit(ENUM_SIGNAL_DIRECTION direction, double entry, double sl) override {
-        // Crypto: TP = 3.0x SL distance (R:R = 3.0)
+        // Crypto: More realistic TP = 1.5x SL distance (R:R = 1.5, was 3.0 - too far!)
+        // This gives achievable targets while still profitable
         double slDistance = MathAbs(entry - sl);
-        double tpDistance = slDistance * 3.0;
+        double tpDistance = slDistance * 1.5;
 
         if(direction == SIGNAL_BUY) {
             return entry + tpDistance;
