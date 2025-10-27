@@ -96,6 +96,26 @@ public:
 
         double lotSize = riskAmount / (pipDistance * pointValue * 10);
 
+        // Apply progressive lot limits based on balance
+        double maxLot = 0.01;  // Default minimum
+
+        if(balance < 100.0) {
+            maxLot = 0.01;      // Micro: 0.01 lot max
+        } else if(balance < 1000.0) {
+            maxLot = 0.1;       // Small: 0.1 lot max
+        } else if(balance < 10000.0) {
+            maxLot = 0.5;       // Medium: 0.5 lot max
+        } else if(balance < 50000.0) {
+            maxLot = 1.0;       // Large: 1.0 lot max
+        } else {
+            maxLot = 2.0;       // XLarge: 2.0 lot max
+        }
+
+        // Cap lot size to maximum
+        if(lotSize > maxLot) {
+            lotSize = maxLot;
+        }
+
         return NormalizeLot(lotSize);
     }
 
@@ -166,13 +186,18 @@ public:
             return false;
         }
 
-        // Check if there's already an open position on this symbol
-        // This prevents hitting broker volume limits
+        // Check if we have too many positions on this symbol
+        // Allow up to 10 positions per symbol to avoid broker volume limits
+        int positionsOnSymbol = 0;
         for(int i = 0; i < PositionsTotal(); i++) {
             if(PositionGetSymbol(i) == _Symbol) {
-                // Don't spam logs - only reject silently
-                return false;
+                positionsOnSymbol++;
             }
+        }
+
+        if(positionsOnSymbol >= 10) {
+            // Don't spam logs - only reject silently
+            return false;
         }
 
         // Check score - use strategy-specific threshold
@@ -183,12 +208,11 @@ public:
             return false;
         }
 
-        // Check cooldown (except for scalping)
-        if(!signal.isScalpSignal) {
-            if(TimeCurrent() - m_lastSignalTime < m_signalCooldown) {
-                // Don't print cooldown messages (too spammy)
-                return false;
-            }
+        // Check cooldown (different cooldown for scalping vs regular signals)
+        int cooldown = signal.isScalpSignal ? 15 : m_signalCooldown;  // 15s for scalping, 60s for regular
+        if(TimeCurrent() - m_lastSignalTime < cooldown) {
+            // Don't print cooldown messages (too spammy)
+            return false;
         }
 
         // Check R:R ratio (skip for scalping - they intentionally have low R:R)
@@ -710,7 +734,7 @@ public:
         if(!(*m_dashboard).Initialize()) return false;
 
         // Initialize strategy
-        if(!InitializeStrategy(strategyMode)) return false;
+        if(!InitializeStrategy(strategyMode, scalpingMode)) return false;
 
         // Prepare indicator buffers
         PrepareBuffers();
@@ -807,7 +831,7 @@ public:
     }
 
 private:
-    bool InitializeStrategy(ENUM_STRATEGY_MODE mode) {
+    bool InitializeStrategy(ENUM_STRATEGY_MODE mode, bool scalpingEnabled = false) {
         switch(mode) {
             case STRATEGY_FOREX:
                 m_activeStrategy = new CForexStrategy();
@@ -823,9 +847,12 @@ private:
                 break;
             case STRATEGY_ADAPTIVE:
             case STRATEGY_AUTO:
-            default:
-                m_activeStrategy = new CAdaptiveStrategy();
+            default: {
+                CAdaptiveStrategy* adaptiveStrategy = new CAdaptiveStrategy();
+                adaptiveStrategy.SetScalpingEnabled(scalpingEnabled);
+                m_activeStrategy = adaptiveStrategy;
                 break;
+            }
         }
 
         if(m_activeStrategy == NULL) return false;

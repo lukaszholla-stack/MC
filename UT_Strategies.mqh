@@ -764,6 +764,7 @@ private:
     CMetalStrategy* m_metalStrategy;
     CCryptoStrategy* m_cryptoStrategy;
     CScalpingStrategy* m_scalpStrategy;
+    bool m_scalpingEnabled;
 
 public:
     CAdaptiveStrategy() {
@@ -774,6 +775,11 @@ public:
         m_metalStrategy = new CMetalStrategy();
         m_cryptoStrategy = new CCryptoStrategy();
         m_scalpStrategy = new CScalpingStrategy();
+        m_scalpingEnabled = false;  // Disabled by default
+    }
+
+    void SetScalpingEnabled(bool enabled) {
+        m_scalpingEnabled = enabled;
     }
 
     ~CAdaptiveStrategy() {
@@ -796,20 +802,23 @@ public:
 
     virtual TradeSignal CheckSignal(MarketConditions& conditions) override {
         // Check if scalping conditions are met (low spread + high volatility)
-        double spread = (g_symbol.Ask() - g_symbol.Bid()) / _Point;
-        bool isLowSpread = (spread <= 20);  // 20 points max
-        bool isHighVolatility = conditions.isVolatile;
+        // BUT ONLY if scalping is enabled by user
+        if(m_scalpingEnabled) {
+            double spread = (g_symbol.Ask() - g_symbol.Bid()) / _Point;
+            bool isLowSpread = (spread <= 20);  // 20 points max
+            bool isHighVolatility = conditions.isVolatile;
 
-        // PRIORITY: Use scalping if conditions are favorable
-        if(isLowSpread && isHighVolatility) {
-            TradeSignal signal = (*m_scalpStrategy).CheckSignal(conditions);
+            // PRIORITY: Use scalping if conditions are favorable
+            if(isLowSpread && isHighVolatility) {
+                TradeSignal signal = (*m_scalpStrategy).CheckSignal(conditions);
 
-            if(signal.isValid && signal.direction != SIGNAL_NONE) {
-                Print("📊 Scalping (adaptive): ", EnumToString(signal.direction),
-                      " (score=", signal.score, ", spread=", DoubleToString(spread, 1), ")");
+                if(signal.isValid && signal.direction != SIGNAL_NONE) {
+                    Print("📊 Scalping (adaptive): ", EnumToString(signal.direction),
+                          " (score=", signal.score, ", spread=", DoubleToString(spread, 1), ")");
+                }
+
+                return signal;
             }
-
-            return signal;
         }
 
         // Auto-detect instrument type for regular strategies
@@ -854,13 +863,14 @@ public:
     }
 
     virtual double CalculateStopLoss(ENUM_SIGNAL_DIRECTION direction, double entry, double atr) override {
-        // Check if scalping conditions are met (same logic as CheckSignal)
-        double spread = (g_symbol.Ask() - g_symbol.Bid()) / _Point;
-        bool isLowSpread = (spread <= 20);
+        // Use scalping SL/TP calculation ONLY if scalping is enabled by user
+        if(m_scalpingEnabled) {
+            double spread = (g_symbol.Ask() - g_symbol.Bid()) / _Point;
+            bool isLowSpread = (spread <= 20);
 
-        // Use scalping SL/TP calculation when spread is low
-        if(isLowSpread) {
-            return (*m_scalpStrategy).CalculateStopLoss(direction, entry, atr);
+            if(isLowSpread) {
+                return (*m_scalpStrategy).CalculateStopLoss(direction, entry, atr);
+            }
         }
 
         // Regular strategy selection based on instrument
@@ -879,13 +889,14 @@ public:
     }
 
     virtual double CalculateTakeProfit(ENUM_SIGNAL_DIRECTION direction, double entry, double sl) override {
-        // Check if scalping conditions are met (same logic as CheckSignal)
-        double spread = (g_symbol.Ask() - g_symbol.Bid()) / _Point;
-        bool isLowSpread = (spread <= 20);
+        // Use scalping SL/TP calculation ONLY if scalping is enabled by user
+        if(m_scalpingEnabled) {
+            double spread = (g_symbol.Ask() - g_symbol.Bid()) / _Point;
+            bool isLowSpread = (spread <= 20);
 
-        // Use scalping SL/TP calculation when spread is low
-        if(isLowSpread) {
-            return (*m_scalpStrategy).CalculateTakeProfit(direction, entry, sl);
+            if(isLowSpread) {
+                return (*m_scalpStrategy).CalculateTakeProfit(direction, entry, sl);
+            }
         }
 
         // Regular strategy selection based on instrument
