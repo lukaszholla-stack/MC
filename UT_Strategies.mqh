@@ -547,32 +547,47 @@ public:
         double microMomentum = CalculateMicroMomentum();
         signal.microMomentum = microMomentum;
 
-        // Scalp signal threshold - LOWERED for better signal generation
-        double threshold = 0.5;  // 0.5 pips minimum momentum (was 3.0)
+        // Also check recent price change as alternative momentum signal
+        double recentChange = 0;
+        MqlRates rates[];
+        ArraySetAsSeries(rates, true);
+        if(CopyRates(_Symbol, PERIOD_CURRENT, 0, 2, rates) == 2) {
+            recentChange = (rates[0].close - rates[1].close) / _Point;  // Change in points
+        }
 
-        if(microMomentum > threshold) {
+        // Use the stronger of the two momentum signals
+        double effectiveMomentum = (MathAbs(recentChange) > MathAbs(microMomentum)) ?
+                                   recentChange : microMomentum;
+
+        // Scalp signal threshold - VERY LOW for responsive scalping
+        double threshold = 0.1;  // 0.1 pips minimum (was 0.5, originally 3.0)
+
+        if(effectiveMomentum > threshold) {
             signal.direction = SIGNAL_BUY;
             signal.isValid = true;
             signal.score = 100;  // Scalping signals are binary (yes/no)
-            signal.reason = StringFormat("Scalp BUY: Momentum %.2f pips", microMomentum);
+            signal.reason = StringFormat("Scalp BUY: Momentum %.2f pips", effectiveMomentum);
             m_lastSignalTime = TimeCurrent();
-            Print("🔥 Scalping BUY: Momentum=", DoubleToString(microMomentum, 2),
-                  " pips, Spread=", DoubleToString(currentSpread, 1));
+            Print("🔥 Scalping BUY: Momentum=", DoubleToString(effectiveMomentum, 2),
+                  " pips (tick: ", DoubleToString(microMomentum, 2),
+                  ", bar: ", DoubleToString(recentChange, 2), "), Spread=", DoubleToString(currentSpread, 1));
         }
-        else if(microMomentum < -threshold) {
+        else if(effectiveMomentum < -threshold) {
             signal.direction = SIGNAL_SELL;
             signal.isValid = true;
             signal.score = 100;
-            signal.reason = StringFormat("Scalp SELL: Momentum %.2f pips", MathAbs(microMomentum));
+            signal.reason = StringFormat("Scalp SELL: Momentum %.2f pips", MathAbs(effectiveMomentum));
             m_lastSignalTime = TimeCurrent();
-            Print("🔥 Scalping SELL: Momentum=", DoubleToString(microMomentum, 2),
-                  " pips, Spread=", DoubleToString(currentSpread, 1));
+            Print("🔥 Scalping SELL: Momentum=", DoubleToString(effectiveMomentum, 2),
+                  " pips (tick: ", DoubleToString(microMomentum, 2),
+                  ", bar: ", DoubleToString(recentChange, 2), "), Spread=", DoubleToString(currentSpread, 1));
         }
         else {
             // Log why no signal (momentum too low) - once per minute
             static datetime lastMomentumLog = 0;
             if(TimeCurrent() - lastMomentumLog > 60) {
-                Print("⚠️ Scalping: Momentum too low (", DoubleToString(microMomentum, 2),
+                Print("⚠️ Scalping: Momentum too low (tick: ", DoubleToString(microMomentum, 2),
+                      ", bar: ", DoubleToString(recentChange, 2),
                       " pips, need > ", DoubleToString(threshold, 1),
                       " or < ", DoubleToString(-threshold, 1), " | Spread: ",
                       DoubleToString(currentSpread, 1), " points)");
