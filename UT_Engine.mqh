@@ -191,8 +191,8 @@ public:
             }
         }
 
-        // Check R:R ratio
-        if(signal.riskRewardRatio > 0 && signal.riskRewardRatio < m_minRiskReward) {
+        // Check R:R ratio (skip for scalping - they intentionally have low R:R)
+        if(!signal.isScalpSignal && signal.riskRewardRatio > 0 && signal.riskRewardRatio < m_minRiskReward) {
             Print("❌ Signal rejected: R:R too low (", signal.riskRewardRatio, " < ", m_minRiskReward, ")");
             return false;
         }
