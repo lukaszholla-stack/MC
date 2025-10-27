@@ -223,49 +223,80 @@ public:
         signal.Reset();
         signal.source = STRATEGY_METAL;
 
-        double currentPrice = g_symbol.Bid();
-
-        // Check if near support/resistance
-        bool nearSupport = (conditions.nearestSupport > 0 &&
-                           MathAbs(currentPrice - conditions.nearestSupport) < conditions.volatility * 0.5);
-
-        bool nearResistance = (conditions.nearestResistance > 0 &&
-                              MathAbs(currentPrice - conditions.nearestResistance) < conditions.volatility * 0.5);
-
-        // Volume score (0-20)
+        // Volume score (0-20) - critical for metals
         signal.volumeScore = AnalyzeVolume(conditions);
 
         // Trend score (0-20)
         signal.trendScore = (conditions.isTrending) ? 15 : 5;
 
-        // Support/Resistance score (0-20)
-        if(nearSupport) {
-            signal.harmonicScore = 20;  // Strong bounce potential
-        }
-        else if(nearResistance) {
-            signal.harmonicScore = 20;  // Strong rejection potential
-        }
+        // Momentum score (0-20)
+        signal.momentumScore = AnalyzeMomentum(conditions);
 
         signal.CalculateScore();
 
-        // Signal generation (lowered volume requirement)
-        if(nearSupport && signal.score >= 20 && conditions.volumeSpike > 1.1) {
-            signal.direction = SIGNAL_BUY;
-            signal.isValid = true;
-            signal.reason = "Metal: Bounce from support + volume";
-        }
-        else if(nearResistance && signal.score >= 20 && conditions.volumeSpike > 1.1) {
-            signal.direction = SIGNAL_SELL;
-            signal.isValid = true;
-            signal.reason = "Metal: Rejection from resistance + volume";
+        // IMPROVED LOGIC: Gold/Silver respond well to RSI + momentum
+        if(signal.score >= 40) {  // Raised from 20 to 40 for better quality
+
+            // STRATEGY 1: Mean reversion on RSI extremes (conservative for metals)
+            if(conditions.rsi < 25 && conditions.trendDirection >= 0) {
+                signal.direction = SIGNAL_BUY;
+                signal.isValid = true;
+                signal.reason = "Metal: Oversold bounce";
+                Print("🔍 Metal: BUY (oversold) | Score=", signal.score, " | RSI=", DoubleToString(conditions.rsi, 1),
+                      " | Trend=", conditions.trendDirection);
+            }
+            else if(conditions.rsi > 75 && conditions.trendDirection <= 0) {
+                signal.direction = SIGNAL_SELL;
+                signal.isValid = true;
+                signal.reason = "Metal: Overbought reversal";
+                Print("🔍 Metal: SELL (overbought) | Score=", signal.score, " | RSI=", DoubleToString(conditions.rsi, 1),
+                      " | Trend=", conditions.trendDirection);
+            }
+
+            // STRATEGY 2: Strong trend following (metals love momentum)
+            else if(conditions.trendDirection > 0 && conditions.rsi >= 35 && conditions.rsi <= 65 &&
+                    conditions.isTrending) {
+                signal.direction = SIGNAL_BUY;
+                signal.isValid = true;
+                signal.reason = "Metal: Bullish momentum";
+                Print("🔍 Metal: BUY (trend) | Score=", signal.score, " | RSI=", DoubleToString(conditions.rsi, 1),
+                      " | Trend=", conditions.trendDirection);
+            }
+            else if(conditions.trendDirection < 0 && conditions.rsi >= 35 && conditions.rsi <= 65 &&
+                    conditions.isTrending) {
+                signal.direction = SIGNAL_SELL;
+                signal.isValid = true;
+                signal.reason = "Metal: Bearish momentum";
+                Print("🔍 Metal: SELL (trend) | Score=", signal.score, " | RSI=", DoubleToString(conditions.rsi, 1),
+                      " | Trend=", conditions.trendDirection);
+            }
+
+            // STRATEGY 3: Volume breakouts (high-volume moves in metals are significant)
+            else if(conditions.volumeSpike > 1.8 && signal.momentumScore > 10) {
+                // Use MACD for momentum direction
+                double macdHistogram = conditions.macd - conditions.macdSignal;
+                if(macdHistogram > 0) {
+                    signal.direction = SIGNAL_BUY;
+                    signal.isValid = true;
+                    signal.reason = "Metal: Volume breakout UP";
+                    Print("🔍 Metal: BUY (breakout) | Score=", signal.score, " | Volume=", DoubleToString(conditions.volumeSpike, 2));
+                }
+                else if(macdHistogram < 0) {
+                    signal.direction = SIGNAL_SELL;
+                    signal.isValid = true;
+                    signal.reason = "Metal: Volume breakout DOWN";
+                    Print("🔍 Metal: SELL (breakout) | Score=", signal.score, " | Volume=", DoubleToString(conditions.volumeSpike, 2));
+                }
+            }
         }
 
         return signal;
     }
 
     virtual double CalculateStopLoss(ENUM_SIGNAL_DIRECTION direction, double entry, double atr) override {
-        // Metal: SL = 1.5x ATR (more volatile)
-        double slDistance = atr * 1.5;
+        // Metal: Realistic SL = 1.0x ATR (was 1.5x - too wide!)
+        // Gold/Silver are volatile but manageable with 1.0x ATR
+        double slDistance = atr * 1.0;
 
         if(direction == SIGNAL_BUY) {
             return entry - slDistance;
@@ -275,9 +306,10 @@ public:
     }
 
     virtual double CalculateTakeProfit(ENUM_SIGNAL_DIRECTION direction, double entry, double sl) override {
-        // Metal: TP = 2.5x SL distance (R:R = 2.5)
+        // Metal: Realistic TP = 1.5x SL distance (R:R = 1.5, was 2.5 - too far!)
+        // Achievable targets for metals while still profitable
         double slDistance = MathAbs(entry - sl);
-        double tpDistance = slDistance * 2.5;
+        double tpDistance = slDistance * 1.5;
 
         if(direction == SIGNAL_BUY) {
             return entry + tpDistance;
@@ -298,6 +330,26 @@ private:
             return 10;  // Moderate volume
         }
         return 5;  // Low volume
+    }
+
+    int AnalyzeMomentum(MarketConditions& conditions) {
+        int score = 0;
+
+        // RSI momentum (metals respond well to RSI)
+        if(conditions.rsi < 25 || conditions.rsi > 75) {
+            score += 12;  // Strong reversal potential
+        }
+        else if(conditions.rsi < 35 || conditions.rsi > 65) {
+            score += 8;   // Moderate reversal potential
+        }
+
+        // MACD histogram (fast momentum for metals)
+        double macdHistogram = conditions.macd - conditions.macdSignal;
+        if(MathAbs(macdHistogram) > 0.001) {
+            score += 8;
+        }
+
+        return MathMin(20, score);
     }
 };
 

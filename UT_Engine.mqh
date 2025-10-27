@@ -157,7 +157,7 @@ public:
 
         Print("✅ Signal Manager initialized");
         Print("   Default min signal score: ", m_minSignalScore);
-        Print("   Strategy-specific thresholds: Crypto=20, Scalping=40, Others=60");
+        Print("   Strategy-specific thresholds: Crypto=30, Metal=40, Scalping=40, Forex=60");
         Print("   Min R:R ratio: ", m_minRiskReward);
 
         return true;
@@ -169,7 +169,7 @@ public:
             case STRATEGY_CRYPTO:    return 30;  // Crypto: Medium threshold for quality (was 20 - too loose!)
             case STRATEGY_SCALPING:  return 40;  // Scalping: Medium threshold for quick trades
             case STRATEGY_FOREX:     return 60;  // Forex: High threshold for quality signals
-            case STRATEGY_METAL:     return 60;  // Metal: High threshold for stability
+            case STRATEGY_METAL:     return 40;  // Metal: Medium threshold (was 60 - too high!)
             case STRATEGY_HARMONIC:  return 55;  // Harmonic: Medium-high for pattern quality
             case STRATEGY_ELLIOTT:   return 55;  // Elliott: Medium-high for wave quality
             case STRATEGY_ADAPTIVE:  return 50;  // Adaptive: Medium threshold
