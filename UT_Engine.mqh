@@ -383,16 +383,12 @@ public:
             // Calculate profit in USD
             double profitUSD = g_position.Profit();
 
-            // SCALPING FAST-CLOSE LOGIC
-            // Only for STRATEGY_SCALPING - close entire position at minimal profit
-            // Other strategies (crypto, forex, metal) use regular position management
-            bool isScalpingPosition = (StringFind(comment, "SCALPING") >= 0);
-
-            if(isScalpingPosition) {
-                double targetProfit = 1.50;  // $1.50 minimum profit for scalping
-
-                if(profitUSD >= targetProfit) {
-                    // Close entire scalping position
+            // SCALPING MODE: Fast-close at minimal profit
+            // When scalping is ON, close entire position at target profit
+            // When scalping is OFF, use regular position management (trailing/breakeven/partial)
+            if(m_scalpingMode) {
+                if(profitUSD >= m_scalpTargetUSD) {
+                    // Close entire position immediately
                     MqlTradeRequest req = {};
                     MqlTradeResult res = {};
 
@@ -406,10 +402,10 @@ public:
 
                     if(OrderSend(req, res)) {
                         Print("💰 SCALP CLOSED: Ticket ", ticket, " | Profit: $",
-                              DoubleToString(profitUSD, 2));
+                              DoubleToString(profitUSD, 2), " | Strategy: ", comment);
                     }
                 }
-                continue;  // Skip regular position management for scalping
+                continue;  // Skip regular position management when scalping mode ON
             }
 
             // REGULAR POSITION MANAGEMENT (non-scalping)
@@ -630,6 +626,8 @@ private:
     // State
     bool m_initialized;
     datetime m_lastUpdate;
+    bool m_scalpingMode;
+    double m_scalpTargetUSD;
 
 public:
     CEngine() {
@@ -641,6 +639,8 @@ public:
         m_activeStrategy = NULL;
         m_initialized = false;
         m_lastUpdate = 0;
+        m_scalpingMode = false;
+        m_scalpTargetUSD = 1.50;
     }
 
     ~CEngine() {
@@ -652,10 +652,15 @@ public:
         if(m_activeStrategy != NULL) delete m_activeStrategy;
     }
 
-    bool Initialize(ENUM_TRADING_MODE mode, ENUM_STRATEGY_MODE strategyMode) {
+    bool Initialize(ENUM_TRADING_MODE mode, ENUM_STRATEGY_MODE strategyMode,
+                   bool scalpingMode = false, double scalpTargetUSD = 1.50) {
         Print("════════════════════════════════════════");
         Print("  ULTIMATE TRADER EA - INITIALIZING");
         Print("════════════════════════════════════════");
+
+        // Store scalping settings
+        m_scalpingMode = scalpingMode;
+        m_scalpTargetUSD = scalpTargetUSD;
 
         // Initialize global symbol info
         if(!g_symbol.Name(_Symbol)) {

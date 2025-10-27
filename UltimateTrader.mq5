@@ -21,9 +21,9 @@
 
 input group "═══════ 🎯 GŁÓWNE USTAWIENIA ═══════"
 input ENUM_TRADING_MODE    InpTradingMode = MODE_BALANCED;        // Tryb tradingu
-input ENUM_STRATEGY_MODE   InpStrategyMode = STRATEGY_ADAPTIVE;   // Strategia
 input bool                 InpAutoTrading = true;                 // Auto-trading
 input int                  InpMagicNumber = 777001;               // Magic Number
+// Strategy: Always ADAPTIVE (auto-detects instrument)
 
 input group "═══════ 💰 ZARZĄDZANIE RYZYKIEM ═══════"
 input double               InpRiskPerTrade = 1.0;                 // Ryzyko per trade (%)
@@ -98,7 +98,8 @@ int OnInit() {
         return INIT_FAILED;
     }
 
-    if(!g_engine.Initialize(InpTradingMode, InpStrategyMode)) {
+    if(!g_engine.Initialize(InpTradingMode, STRATEGY_ADAPTIVE,
+                            InpEnableScalping, InpScalpTargetUSD)) {
         Print("❌ ERROR: Engine initialization failed");
         delete g_engine;
         g_engine = NULL;
@@ -119,12 +120,15 @@ int OnInit() {
     Print("   Symbol: ", _Symbol);
     Print("   Timeframe: ", EnumToString(PERIOD_CURRENT));
     Print("   Mode: ", EnumToString(InpTradingMode));
-    Print("   Strategy: ", EnumToString(InpStrategyMode));
+    Print("   Strategy: ADAPTIVE (auto-detects instrument)");
+    Print("   Scalping Mode: ", InpEnableScalping ? "ON" : "OFF");
+    if(InpEnableScalping) {
+        Print("   → Fast close @ $", InpScalpTargetUSD, " profit");
+    }
     Print("   Risk per trade: ", InpRiskPerTrade, "%");
     Print("   Max daily loss: ", InpMaxDailyLoss, "%");
     Print("   Max drawdown: ", InpMaxDrawdown, "%");
     Print("   Dashboard: ", InpShowDashboard ? "ON" : "OFF");
-    Print("   Scalping: ", InpEnableScalping ? "ENABLED" : "DISABLED");
     Print("");
 
     return INIT_SUCCEEDED;
