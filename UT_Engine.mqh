@@ -250,9 +250,9 @@ public:
         m_useTrailing = true;
         m_useBreakeven = true;
         m_usePartialClose = true;
-        m_trailingActivation = 0.05;   // 5% (ultra-aggressive! was 20%)
-        m_breakevenActivation = 0.05;  // 5% (ultra-aggressive! was 10%)
-        m_partialCloseLevel = 0.5;     // 50% (earlier)
+        m_trailingActivation = 0.30;   // 30% (MC5 conservative - was 5% ultra-aggressive!)
+        m_breakevenActivation = 0.30;  // 30% (MC5 conservative - was 5% ultra-aggressive!)
+        m_partialCloseLevel = 0.60;    // 60% (MC5 style - later partial close)
         m_scalpingMode = false;
         m_scalpTargetUSD = 1.50;
     }
@@ -514,10 +514,10 @@ private:
     }
 
     double CalculateTrailingStop(bool isBuy, double currentPrice, double currentSL, double openPrice) {
-        // Ultra-aggressive trailing: lock in most of the profit!
-        // Keep SL very close to current price to secure gains
+        // MC5 conservative trailing: give room for price movement!
+        // Keep SL at safe distance to avoid premature stops
         double profitDistance = MathAbs(currentPrice - openPrice);
-        double trailDistance = profitDistance * 0.5;  // Trail at 50% of profit distance (was 25%)
+        double trailDistance = profitDistance * 0.20;  // Trail at 20% of profit distance (MC5 style - was 50% ultra-aggressive!)
 
         // Minimum trail distance: 10 points
         double minDistance = 10 * _Point;

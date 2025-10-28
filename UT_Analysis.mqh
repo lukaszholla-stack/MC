@@ -675,9 +675,13 @@ public:
         }
 
         // Populate technical indicators
-        conditions.rsi = (*m_techAnalysis).GetRSI();
-        conditions.macd = (*m_techAnalysis).GetMACD();
-        conditions.macdSignal = (*m_techAnalysis).GetMACDSignal();
+        conditions.rsi = (*m_techAnalysis).GetRSI(0);
+        conditions.rsiPrev = (*m_techAnalysis).GetRSI(1);      // MC5 style - history for RISING detection
+        conditions.rsiPrev2 = (*m_techAnalysis).GetRSI(2);     // MC5 style - 2 bars ago
+        conditions.macd = (*m_techAnalysis).GetMACD(0);
+        conditions.macdPrev = (*m_techAnalysis).GetMACD(1);    // MC5 style - MACD history for cross detection
+        conditions.macdSignal = (*m_techAnalysis).GetMACDSignal(0);
+        conditions.macdSignalPrev = (*m_techAnalysis).GetMACDSignal(1);  // MC5 style
         conditions.adx = (*m_techAnalysis).GetADX();
         conditions.stochastic = (*m_techAnalysis).GetStochastic();
         conditions.ema20 = (*m_techAnalysis).GetEMA20();

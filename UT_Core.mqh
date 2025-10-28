@@ -106,10 +106,14 @@ struct MarketConditions {
     int w1Trend;                // W1 trend (-1/0/+1)
     int trendAlignment;         // Sum of all trends (-3 to +3)
 
-    // Key indicators
-    double rsi;                 // RSI(14)
-    double macd;                // MACD main line
-    double macdSignal;          // MACD signal line
+    // Key indicators (current + previous for RISING detection)
+    double rsi;                 // RSI(14) current
+    double rsiPrev;             // RSI(14) previous bar
+    double rsiPrev2;            // RSI(14) 2 bars ago
+    double macd;                // MACD main line current
+    double macdPrev;            // MACD previous
+    double macdSignal;          // MACD signal line current
+    double macdSignalPrev;      // MACD signal previous
     double adx;                 // ADX(14)
     double stochastic;          // Stochastic %K
     double ema20;               // EMA(20)
@@ -155,8 +159,12 @@ struct MarketConditions {
         w1Trend = 0;
         trendAlignment = 0;
         rsi = 50;
+        rsiPrev = 50;
+        rsiPrev2 = 50;
         macd = 0;
+        macdPrev = 0;
         macdSignal = 0;
+        macdSignalPrev = 0;
         adx = 0;
         stochastic = 50;
         ema20 = 0;

@@ -226,46 +226,85 @@ public:
         // Volume score (0-20) - critical for metals
         signal.volumeScore = AnalyzeVolume(conditions);
 
+        // Add bonus for extreme volume (MC5 style)
+        if(conditions.volumeSpike > 2.0) {
+            signal.volumeScore = MathMin(20, signal.volumeScore + 5);
+        }
+
         // Trend score (0-20)
         signal.trendScore = (conditions.isTrending) ? 15 : 5;
 
         // Momentum score (0-20)
         signal.momentumScore = AnalyzeMomentum(conditions);
 
+        // Add ADX bonus (MC5 style)
+        if(conditions.adx > 30) {
+            signal.momentumScore = MathMin(20, signal.momentumScore + 5);
+        }
+
         signal.CalculateScore();
 
-        // IMPROVED LOGIC: Gold/Silver respond well to RSI + momentum
-        if(signal.score >= 40) {  // Raised from 20 to 40 for better quality
+        // MC5 LOGIC: Lower threshold for better signal generation
+        if(signal.score >= 30) {  // Lowered from 40 to 30!
 
-            // STRATEGY 1: Mean reversion on RSI extremes (conservative for metals)
-            if(conditions.rsi < 25 && conditions.trendDirection >= 0) {
+            // STRATEGY 1: RSI RISING from oversold (MC5 style!)
+            if(conditions.rsi > 25 && conditions.rsi < 35 &&           // Range 25-35
+               conditions.rsi > conditions.rsiPrev &&                  // RSI RISING ✅
+               conditions.rsiPrev < conditions.rsiPrev2 &&             // Was falling
+               conditions.trendDirection >= 0) {                       // Not in downtrend
+
                 signal.direction = SIGNAL_BUY;
                 signal.isValid = true;
-                signal.reason = "Metal: Oversold bounce";
-                Print("🔍 Metal: BUY (oversold) | Score=", signal.score, " | RSI=", DoubleToString(conditions.rsi, 1),
-                      " | Trend=", conditions.trendDirection);
+                signal.strength = 60 + (int)((35 - conditions.rsi) * 2);
+                signal.reason = "Metal: RSI rising from oversold";
+
+                // MC5 BONUS: MACD golden cross adds strength!
+                if(conditions.macd > conditions.macdSignal &&
+                   conditions.macdPrev <= conditions.macdSignalPrev) {
+                    signal.strength += 15;
+                    signal.reason += " + MACD cross";
+                }
+
+                Print("🔍 Metal: BUY (RSI rising) | Score=", signal.score, " | RSI=", DoubleToString(conditions.rsi, 1),
+                      " | Strength=", signal.strength, " | ", signal.reason);
             }
-            else if(conditions.rsi > 75 && conditions.trendDirection <= 0) {
+            // STRATEGY 1b: RSI FALLING from overbought (MC5 style!)
+            else if(conditions.rsi > 65 && conditions.rsi < 75 &&      // Range 65-75
+                    conditions.rsi < conditions.rsiPrev &&             // RSI FALLING ✅
+                    conditions.rsiPrev > conditions.rsiPrev2 &&        // Was rising
+                    conditions.trendDirection <= 0) {                  // Not in uptrend
+
                 signal.direction = SIGNAL_SELL;
                 signal.isValid = true;
-                signal.reason = "Metal: Overbought reversal";
-                Print("🔍 Metal: SELL (overbought) | Score=", signal.score, " | RSI=", DoubleToString(conditions.rsi, 1),
-                      " | Trend=", conditions.trendDirection);
+                signal.strength = 60 + (int)((conditions.rsi - 65) * 2);
+                signal.reason = "Metal: RSI falling from overbought";
+
+                // MC5 BONUS: MACD death cross adds strength!
+                if(conditions.macd < conditions.macdSignal &&
+                   conditions.macdPrev >= conditions.macdSignalPrev) {
+                    signal.strength += 15;
+                    signal.reason += " + MACD cross";
+                }
+
+                Print("🔍 Metal: SELL (RSI falling) | Score=", signal.score, " | RSI=", DoubleToString(conditions.rsi, 1),
+                      " | Strength=", signal.strength, " | ", signal.reason);
             }
 
             // STRATEGY 2: Strong trend following (metals love momentum)
-            else if(conditions.trendDirection > 0 && conditions.rsi >= 35 && conditions.rsi <= 65 &&
+            else if(conditions.trendDirection > 0 && conditions.rsi >= 40 && conditions.rsi <= 60 &&
                     conditions.isTrending) {
                 signal.direction = SIGNAL_BUY;
                 signal.isValid = true;
+                signal.strength = 55;
                 signal.reason = "Metal: Bullish momentum";
                 Print("🔍 Metal: BUY (trend) | Score=", signal.score, " | RSI=", DoubleToString(conditions.rsi, 1),
                       " | Trend=", conditions.trendDirection);
             }
-            else if(conditions.trendDirection < 0 && conditions.rsi >= 35 && conditions.rsi <= 65 &&
+            else if(conditions.trendDirection < 0 && conditions.rsi >= 40 && conditions.rsi <= 60 &&
                     conditions.isTrending) {
                 signal.direction = SIGNAL_SELL;
                 signal.isValid = true;
+                signal.strength = 55;
                 signal.reason = "Metal: Bearish momentum";
                 Print("🔍 Metal: SELL (trend) | Score=", signal.score, " | RSI=", DoubleToString(conditions.rsi, 1),
                       " | Trend=", conditions.trendDirection);
@@ -278,12 +317,14 @@ public:
                 if(macdHistogram > 0) {
                     signal.direction = SIGNAL_BUY;
                     signal.isValid = true;
+                    signal.strength = 50;
                     signal.reason = "Metal: Volume breakout UP";
                     Print("🔍 Metal: BUY (breakout) | Score=", signal.score, " | Volume=", DoubleToString(conditions.volumeSpike, 2));
                 }
                 else if(macdHistogram < 0) {
                     signal.direction = SIGNAL_SELL;
                     signal.isValid = true;
+                    signal.strength = 50;
                     signal.reason = "Metal: Volume breakout DOWN";
                     Print("🔍 Metal: SELL (breakout) | Score=", signal.score, " | Volume=", DoubleToString(conditions.volumeSpike, 2));
                 }
@@ -294,9 +335,9 @@ public:
     }
 
     virtual double CalculateStopLoss(ENUM_SIGNAL_DIRECTION direction, double entry, double atr) override {
-        // Metal: Realistic SL = 1.0x ATR (was 1.5x - too wide!)
-        // Gold/Silver are volatile but manageable with 1.0x ATR
-        double slDistance = atr * 1.0;
+        // Metal: MC5 style SL = 1.5x ATR (was 1.0x - too tight!)
+        // Gold/Silver need breathing room
+        double slDistance = atr * 1.5;
 
         if(direction == SIGNAL_BUY) {
             return entry - slDistance;
@@ -306,10 +347,24 @@ public:
     }
 
     virtual double CalculateTakeProfit(ENUM_SIGNAL_DIRECTION direction, double entry, double sl) override {
-        // Metal: Realistic TP = 1.5x SL distance (R:R = 1.5, was 2.5 - too far!)
-        // Achievable targets for metals while still profitable
+        // Metal: MC5 style adaptive TP = 2.0-2.5x SL distance (was 1.5x - too low!)
+        // Bigger winners with adaptive targets
         double slDistance = MathAbs(entry - sl);
-        double tpDistance = slDistance * 1.5;
+
+        // Get ADX from market analyzer
+        double adx = 25.0;  // Default
+        if(m_marketAnalyzer != NULL) {
+            MarketConditions cond = m_marketAnalyzer.GetConditions();
+            adx = cond.adx;
+        }
+
+        // Adaptive TP multiplier based on trend strength (MC5 style)
+        double tpMultiplier = 2.0;  // Base R:R
+        if(adx > 35) tpMultiplier = 2.5;       // Strong trend - aim higher!
+        else if(adx > 25) tpMultiplier = 2.0;  // Moderate trend
+        else tpMultiplier = 1.8;               // Weak trend - conservative
+
+        double tpDistance = slDistance * tpMultiplier;
 
         if(direction == SIGNAL_BUY) {
             return entry + tpDistance;
@@ -377,37 +432,75 @@ public:
         // Momentum score (0-20)
         signal.momentumScore = AnalyzeMomentum(conditions);
 
+        // Add ADX bonus (MC5 style)
+        if(conditions.adx > 30) {
+            signal.momentumScore = MathMin(20, signal.momentumScore + 5);
+        }
+
         // Volume score (0-20) - critical for crypto
         signal.volumeScore = AnalyzeVolume(conditions);
+
+        // Add bonus for extreme volume (MC5 style)
+        if(conditions.volumeSpike > 2.0) {
+            signal.volumeScore = MathMin(20, signal.volumeScore + 5);
+        }
 
         // Volatility score (0-20)
         signal.trendScore = AnalyzeVolatility(conditions);
 
         signal.CalculateScore();
 
-        // IMPROVED LOGIC: Only trade clear setups with proper confirmation
-        if(signal.score >= 30) {  // Raised from 20 to 30 for better quality
+        // MC5 LOGIC: Only trade clear setups with proper confirmation
+        if(signal.score >= 30) {  // Threshold 30 (correct)
 
-            // STRATEGY 1: Mean reversion on RSI extremes (high probability)
-            if(conditions.rsi < 30 && conditions.trendDirection >= 0) {
+            // STRATEGY 1: RSI RISING from oversold (MC5 style!)
+            if(conditions.rsi > 25 && conditions.rsi < 35 &&           // Range 25-35
+               conditions.rsi > conditions.rsiPrev &&                  // RSI RISING ✅
+               conditions.rsiPrev < conditions.rsiPrev2 &&             // Was falling
+               conditions.trendDirection >= 0) {                       // Not in downtrend
+
                 signal.direction = SIGNAL_BUY;
                 signal.isValid = true;
-                signal.reason = "Crypto: Oversold bounce";
-                Print("🔍 Crypto: BUY (oversold) | Score=", signal.score, " | RSI=", DoubleToString(conditions.rsi, 1),
-                      " | Trend=", conditions.trendDirection);
+                signal.strength = 60 + (int)((35 - conditions.rsi) * 2);
+                signal.reason = "Crypto: RSI rising from oversold";
+
+                // MC5 BONUS: MACD golden cross adds strength!
+                if(conditions.macd > conditions.macdSignal &&
+                   conditions.macdPrev <= conditions.macdSignalPrev) {
+                    signal.strength += 15;
+                    signal.reason += " + MACD cross";
+                }
+
+                Print("🔍 Crypto: BUY (RSI rising) | Score=", signal.score, " | RSI=", DoubleToString(conditions.rsi, 1),
+                      " | Strength=", signal.strength, " | ", signal.reason);
             }
-            else if(conditions.rsi > 70 && conditions.trendDirection <= 0) {
+            // STRATEGY 1b: RSI FALLING from overbought (MC5 style!)
+            else if(conditions.rsi > 65 && conditions.rsi < 75 &&      // Range 65-75
+                    conditions.rsi < conditions.rsiPrev &&             // RSI FALLING ✅
+                    conditions.rsiPrev > conditions.rsiPrev2 &&        // Was rising
+                    conditions.trendDirection <= 0) {                  // Not in uptrend
+
                 signal.direction = SIGNAL_SELL;
                 signal.isValid = true;
-                signal.reason = "Crypto: Overbought reversal";
-                Print("🔍 Crypto: SELL (overbought) | Score=", signal.score, " | RSI=", DoubleToString(conditions.rsi, 1),
-                      " | Trend=", conditions.trendDirection);
+                signal.strength = 60 + (int)((conditions.rsi - 65) * 2);
+                signal.reason = "Crypto: RSI falling from overbought";
+
+                // MC5 BONUS: MACD death cross adds strength!
+                if(conditions.macd < conditions.macdSignal &&
+                   conditions.macdPrev >= conditions.macdSignalPrev) {
+                    signal.strength += 15;
+                    signal.reason += " + MACD cross";
+                }
+
+                Print("🔍 Crypto: SELL (RSI falling) | Score=", signal.score, " | RSI=", DoubleToString(conditions.rsi, 1),
+                      " | Strength=", signal.strength, " | ", signal.reason);
             }
 
             // STRATEGY 2: Strong trend with momentum (only if RSI not extreme)
             else if(conditions.trendDirection > 0 && conditions.rsi >= 40 && conditions.rsi <= 60) {
                 signal.direction = SIGNAL_BUY;
                 signal.isValid = true;
+                signal.strength = 55;
                 signal.reason = "Crypto: Bullish momentum";
                 Print("🔍 Crypto: BUY (trend) | Score=", signal.score, " | RSI=", DoubleToString(conditions.rsi, 1),
                       " | Trend=", conditions.trendDirection);
@@ -415,6 +508,7 @@ public:
             else if(conditions.trendDirection < 0 && conditions.rsi >= 40 && conditions.rsi <= 60) {
                 signal.direction = SIGNAL_SELL;
                 signal.isValid = true;
+                signal.strength = 55;
                 signal.reason = "Crypto: Bearish momentum";
                 Print("🔍 Crypto: SELL (trend) | Score=", signal.score, " | RSI=", DoubleToString(conditions.rsi, 1),
                       " | Trend=", conditions.trendDirection);
@@ -427,12 +521,14 @@ public:
                 if(macdHistogram > 0) {
                     signal.direction = SIGNAL_BUY;
                     signal.isValid = true;
+                    signal.strength = 50;
                     signal.reason = "Crypto: Volume breakout UP";
                     Print("🔍 Crypto: BUY (breakout) | Score=", signal.score, " | Volume=", DoubleToString(conditions.volumeSpike, 2));
                 }
                 else if(macdHistogram < 0) {
                     signal.direction = SIGNAL_SELL;
                     signal.isValid = true;
+                    signal.strength = 50;
                     signal.reason = "Crypto: Volume breakout DOWN";
                     Print("🔍 Crypto: SELL (breakout) | Score=", signal.score, " | Volume=", DoubleToString(conditions.volumeSpike, 2));
                 }
@@ -443,7 +539,7 @@ public:
     }
 
     virtual double CalculateStopLoss(ENUM_SIGNAL_DIRECTION direction, double entry, double atr) override {
-        // Crypto: More realistic SL = 1.0x ATR (was 2.0x - too wide!)
+        // Crypto: SL = 1.0x ATR (correct for high volatility!)
         // Still allows volatility but keeps it manageable
         double slDistance = atr * 1.0;
 
@@ -455,10 +551,24 @@ public:
     }
 
     virtual double CalculateTakeProfit(ENUM_SIGNAL_DIRECTION direction, double entry, double sl) override {
-        // Crypto: More realistic TP = 1.5x SL distance (R:R = 1.5, was 3.0 - too far!)
-        // This gives achievable targets while still profitable
+        // Crypto: MC5 style adaptive TP = 2.0-2.5x SL distance (was 1.5x - too low!)
+        // Bigger winners with adaptive targets
         double slDistance = MathAbs(entry - sl);
-        double tpDistance = slDistance * 1.5;
+
+        // Get ADX from market analyzer
+        double adx = 25.0;  // Default
+        if(m_marketAnalyzer != NULL) {
+            MarketConditions cond = m_marketAnalyzer.GetConditions();
+            adx = cond.adx;
+        }
+
+        // Adaptive TP multiplier based on trend strength (MC5 style)
+        double tpMultiplier = 2.0;  // Base R:R
+        if(adx > 35) tpMultiplier = 2.5;       // Strong trend - aim higher!
+        else if(adx > 25) tpMultiplier = 2.0;  // Moderate trend
+        else tpMultiplier = 1.8;               // Weak trend - conservative
+
+        double tpDistance = slDistance * tpMultiplier;
 
         if(direction == SIGNAL_BUY) {
             return entry + tpDistance;
