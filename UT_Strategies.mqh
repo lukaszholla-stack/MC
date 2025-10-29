@@ -339,24 +339,12 @@ public:
     }
 
     virtual double CalculateTakeProfit(ENUM_SIGNAL_DIRECTION direction, double entry, double sl) override {
-        // Metal: MC5 style adaptive TP = 2.0-2.5x SL distance (was 1.5x - too low!)
-        // Bigger winners with adaptive targets
+        // Metal: MC5 style TP = 2.0x SL distance (was 1.5x - too low!)
+        // Bigger winners for better R:R
         double slDistance = MathAbs(entry - sl);
 
-        // Get ADX from market analyzer
-        double adx = 25.0;  // Default
-        if(m_marketAnalyzer != NULL) {
-            MarketConditions cond = (*m_marketAnalyzer).Analyze();
-            adx = cond.adx;
-        }
-
-        // Adaptive TP multiplier based on trend strength (MC5 style)
-        double tpMultiplier = 2.0;  // Base R:R
-        if(adx > 35) tpMultiplier = 2.5;       // Strong trend - aim higher!
-        else if(adx > 25) tpMultiplier = 2.0;  // Moderate trend
-        else tpMultiplier = 1.8;               // Weak trend - conservative
-
-        double tpDistance = slDistance * tpMultiplier;
+        // Fixed 2.0x multiplier (MC5 uses 2.0-2.5x adaptive, we use 2.0x for simplicity)
+        double tpDistance = slDistance * 2.0;
 
         if(direction == SIGNAL_BUY) {
             return entry + tpDistance;
@@ -535,24 +523,12 @@ public:
     }
 
     virtual double CalculateTakeProfit(ENUM_SIGNAL_DIRECTION direction, double entry, double sl) override {
-        // Crypto: MC5 style adaptive TP = 2.0-2.5x SL distance (was 1.5x - too low!)
-        // Bigger winners with adaptive targets
+        // Crypto: MC5 style TP = 2.0x SL distance (was 1.5x - too low!)
+        // Bigger winners for better R:R
         double slDistance = MathAbs(entry - sl);
 
-        // Get ADX from market analyzer
-        double adx = 25.0;  // Default
-        if(m_marketAnalyzer != NULL) {
-            MarketConditions cond = (*m_marketAnalyzer).Analyze();
-            adx = cond.adx;
-        }
-
-        // Adaptive TP multiplier based on trend strength (MC5 style)
-        double tpMultiplier = 2.0;  // Base R:R
-        if(adx > 35) tpMultiplier = 2.5;       // Strong trend - aim higher!
-        else if(adx > 25) tpMultiplier = 2.0;  // Moderate trend
-        else tpMultiplier = 1.8;               // Weak trend - conservative
-
-        double tpDistance = slDistance * tpMultiplier;
+        // Fixed 2.0x multiplier (MC5 uses 2.0-2.5x adaptive, we use 2.0x for simplicity)
+        double tpDistance = slDistance * 2.0;
 
         if(direction == SIGNAL_BUY) {
             return entry + tpDistance;
