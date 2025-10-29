@@ -346,7 +346,7 @@ public:
         // Get ADX from market analyzer
         double adx = 25.0;  // Default
         if(m_marketAnalyzer != NULL) {
-            MarketConditions cond = (*m_marketAnalyzer).GetConditions();
+            MarketConditions cond = (*m_marketAnalyzer).Analyze();
             adx = cond.adx;
         }
 
@@ -542,7 +542,7 @@ public:
         // Get ADX from market analyzer
         double adx = 25.0;  // Default
         if(m_marketAnalyzer != NULL) {
-            MarketConditions cond = (*m_marketAnalyzer).GetConditions();
+            MarketConditions cond = (*m_marketAnalyzer).Analyze();
             adx = cond.adx;
         }
 
