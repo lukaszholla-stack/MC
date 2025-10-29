@@ -244,8 +244,9 @@ public:
 
         signal.CalculateScore();
 
-        // MC5 LOGIC: Lower threshold for better signal generation
-        if(signal.score >= 30) {  // Lowered from 40 to 30!
+        // Lower threshold for M5 timeframe compatibility (was 30, now 25)
+        // M15+ will easily exceed 30, but M5 needs lower threshold due to noise
+        if(signal.score >= 25) {  // Lowered from 30 to 25!
 
             // STRATEGY 1: RSI RISING from oversold (MC5 style!)
             if(conditions.rsi > 25 && conditions.rsi < 35 &&           // Range 25-35
@@ -321,6 +322,18 @@ public:
                     Print("🔍 Metal: SELL (breakout) | Score=", signal.score, " | Volume=", DoubleToString(conditions.volumeSpike, 2));
                 }
             }
+        }
+        else {
+            // Score too low - log why
+            Print("⚠️ Metal: Score too low (", signal.score, " < 25) | RSI=", DoubleToString(conditions.rsi, 1),
+                  " | ADX=", DoubleToString(conditions.adx, 1), " | Volume=", DoubleToString(conditions.volumeSpike, 2));
+        }
+
+        // If score was good but no strategy matched, log it
+        if(signal.score >= 25 && signal.direction == SIGNAL_NONE) {
+            Print("⚠️ Metal: Score OK (", signal.score, ") but NO strategy matched | RSI=", DoubleToString(conditions.rsi, 1),
+                  " (need 25-35 RISING or 65-75 FALLING) | Trend=", conditions.trendDirection,
+                  " | isTrending=", conditions.isTrending, " | Volume=", DoubleToString(conditions.volumeSpike, 2));
         }
 
         return signal;
@@ -430,8 +443,8 @@ public:
 
         signal.CalculateScore();
 
-        // MC5 LOGIC: Only trade clear setups with proper confirmation
-        if(signal.score >= 30) {  // Threshold 30 (correct)
+        // Lower threshold for M5 timeframe compatibility (was 30, now 25)
+        if(signal.score >= 25) {  // Lowered to 25
 
             // STRATEGY 1: RSI RISING from oversold (MC5 style!)
             if(conditions.rsi > 25 && conditions.rsi < 35 &&           // Range 25-35
