@@ -255,18 +255,16 @@ public:
 
                 signal.direction = SIGNAL_BUY;
                 signal.isValid = true;
-                signal.strength = 60 + (int)((35 - conditions.rsi) * 2);
                 signal.reason = "Metal: RSI rising from oversold";
 
-                // MC5 BONUS: MACD golden cross adds strength!
+                // MC5 BONUS: MACD golden cross confirmation!
                 if(conditions.macd > conditions.macdSignal &&
                    conditions.macdPrev <= conditions.macdSignalPrev) {
-                    signal.strength += 15;
                     signal.reason += " + MACD cross";
                 }
 
                 Print("🔍 Metal: BUY (RSI rising) | Score=", signal.score, " | RSI=", DoubleToString(conditions.rsi, 1),
-                      " | Strength=", signal.strength, " | ", signal.reason);
+                      " | ", signal.reason);
             }
             // STRATEGY 1b: RSI FALLING from overbought (MC5 style!)
             else if(conditions.rsi > 65 && conditions.rsi < 75 &&      // Range 65-75
@@ -276,18 +274,16 @@ public:
 
                 signal.direction = SIGNAL_SELL;
                 signal.isValid = true;
-                signal.strength = 60 + (int)((conditions.rsi - 65) * 2);
                 signal.reason = "Metal: RSI falling from overbought";
 
-                // MC5 BONUS: MACD death cross adds strength!
+                // MC5 BONUS: MACD death cross confirmation!
                 if(conditions.macd < conditions.macdSignal &&
                    conditions.macdPrev >= conditions.macdSignalPrev) {
-                    signal.strength += 15;
                     signal.reason += " + MACD cross";
                 }
 
                 Print("🔍 Metal: SELL (RSI falling) | Score=", signal.score, " | RSI=", DoubleToString(conditions.rsi, 1),
-                      " | Strength=", signal.strength, " | ", signal.reason);
+                      " | ", signal.reason);
             }
 
             // STRATEGY 2: Strong trend following (metals love momentum)
@@ -295,7 +291,6 @@ public:
                     conditions.isTrending) {
                 signal.direction = SIGNAL_BUY;
                 signal.isValid = true;
-                signal.strength = 55;
                 signal.reason = "Metal: Bullish momentum";
                 Print("🔍 Metal: BUY (trend) | Score=", signal.score, " | RSI=", DoubleToString(conditions.rsi, 1),
                       " | Trend=", conditions.trendDirection);
@@ -304,7 +299,6 @@ public:
                     conditions.isTrending) {
                 signal.direction = SIGNAL_SELL;
                 signal.isValid = true;
-                signal.strength = 55;
                 signal.reason = "Metal: Bearish momentum";
                 Print("🔍 Metal: SELL (trend) | Score=", signal.score, " | RSI=", DoubleToString(conditions.rsi, 1),
                       " | Trend=", conditions.trendDirection);
@@ -317,14 +311,12 @@ public:
                 if(macdHistogram > 0) {
                     signal.direction = SIGNAL_BUY;
                     signal.isValid = true;
-                    signal.strength = 50;
                     signal.reason = "Metal: Volume breakout UP";
                     Print("🔍 Metal: BUY (breakout) | Score=", signal.score, " | Volume=", DoubleToString(conditions.volumeSpike, 2));
                 }
                 else if(macdHistogram < 0) {
                     signal.direction = SIGNAL_SELL;
                     signal.isValid = true;
-                    signal.strength = 50;
                     signal.reason = "Metal: Volume breakout DOWN";
                     Print("🔍 Metal: SELL (breakout) | Score=", signal.score, " | Volume=", DoubleToString(conditions.volumeSpike, 2));
                 }
@@ -354,7 +346,7 @@ public:
         // Get ADX from market analyzer
         double adx = 25.0;  // Default
         if(m_marketAnalyzer != NULL) {
-            MarketConditions cond = m_marketAnalyzer.GetConditions();
+            MarketConditions cond = (*m_marketAnalyzer).GetConditions();
             adx = cond.adx;
         }
 
@@ -461,18 +453,16 @@ public:
 
                 signal.direction = SIGNAL_BUY;
                 signal.isValid = true;
-                signal.strength = 60 + (int)((35 - conditions.rsi) * 2);
                 signal.reason = "Crypto: RSI rising from oversold";
 
-                // MC5 BONUS: MACD golden cross adds strength!
+                // MC5 BONUS: MACD golden cross confirmation!
                 if(conditions.macd > conditions.macdSignal &&
                    conditions.macdPrev <= conditions.macdSignalPrev) {
-                    signal.strength += 15;
                     signal.reason += " + MACD cross";
                 }
 
                 Print("🔍 Crypto: BUY (RSI rising) | Score=", signal.score, " | RSI=", DoubleToString(conditions.rsi, 1),
-                      " | Strength=", signal.strength, " | ", signal.reason);
+                      " | ", signal.reason);
             }
             // STRATEGY 1b: RSI FALLING from overbought (MC5 style!)
             else if(conditions.rsi > 65 && conditions.rsi < 75 &&      // Range 65-75
@@ -482,25 +472,22 @@ public:
 
                 signal.direction = SIGNAL_SELL;
                 signal.isValid = true;
-                signal.strength = 60 + (int)((conditions.rsi - 65) * 2);
                 signal.reason = "Crypto: RSI falling from overbought";
 
-                // MC5 BONUS: MACD death cross adds strength!
+                // MC5 BONUS: MACD death cross confirmation!
                 if(conditions.macd < conditions.macdSignal &&
                    conditions.macdPrev >= conditions.macdSignalPrev) {
-                    signal.strength += 15;
                     signal.reason += " + MACD cross";
                 }
 
                 Print("🔍 Crypto: SELL (RSI falling) | Score=", signal.score, " | RSI=", DoubleToString(conditions.rsi, 1),
-                      " | Strength=", signal.strength, " | ", signal.reason);
+                      " | ", signal.reason);
             }
 
             // STRATEGY 2: Strong trend with momentum (only if RSI not extreme)
             else if(conditions.trendDirection > 0 && conditions.rsi >= 40 && conditions.rsi <= 60) {
                 signal.direction = SIGNAL_BUY;
                 signal.isValid = true;
-                signal.strength = 55;
                 signal.reason = "Crypto: Bullish momentum";
                 Print("🔍 Crypto: BUY (trend) | Score=", signal.score, " | RSI=", DoubleToString(conditions.rsi, 1),
                       " | Trend=", conditions.trendDirection);
@@ -508,7 +495,6 @@ public:
             else if(conditions.trendDirection < 0 && conditions.rsi >= 40 && conditions.rsi <= 60) {
                 signal.direction = SIGNAL_SELL;
                 signal.isValid = true;
-                signal.strength = 55;
                 signal.reason = "Crypto: Bearish momentum";
                 Print("🔍 Crypto: SELL (trend) | Score=", signal.score, " | RSI=", DoubleToString(conditions.rsi, 1),
                       " | Trend=", conditions.trendDirection);
@@ -521,14 +507,12 @@ public:
                 if(macdHistogram > 0) {
                     signal.direction = SIGNAL_BUY;
                     signal.isValid = true;
-                    signal.strength = 50;
                     signal.reason = "Crypto: Volume breakout UP";
                     Print("🔍 Crypto: BUY (breakout) | Score=", signal.score, " | Volume=", DoubleToString(conditions.volumeSpike, 2));
                 }
                 else if(macdHistogram < 0) {
                     signal.direction = SIGNAL_SELL;
                     signal.isValid = true;
-                    signal.strength = 50;
                     signal.reason = "Crypto: Volume breakout DOWN";
                     Print("🔍 Crypto: SELL (breakout) | Score=", signal.score, " | Volume=", DoubleToString(conditions.volumeSpike, 2));
                 }
@@ -558,7 +542,7 @@ public:
         // Get ADX from market analyzer
         double adx = 25.0;  // Default
         if(m_marketAnalyzer != NULL) {
-            MarketConditions cond = m_marketAnalyzer.GetConditions();
+            MarketConditions cond = (*m_marketAnalyzer).GetConditions();
             adx = cond.adx;
         }
 
