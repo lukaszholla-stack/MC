@@ -322,6 +322,25 @@ public:
                     Print("🔍 Metal: SELL (breakout) | Score=", signal.score, " | Volume=", DoubleToString(conditions.volumeSpike, 2));
                 }
             }
+
+            // STRATEGY 4: General momentum (fallback when score is good but specific conditions not met)
+            else if(signal.score >= 30) {  // Only when score is strong
+                // Use MACD direction for trade bias
+                if(conditions.macd > conditions.macdSignal && conditions.trendDirection >= 0) {
+                    signal.direction = SIGNAL_BUY;
+                    signal.isValid = true;
+                    signal.reason = "Metal: MACD bullish";
+                    Print("🔍 Metal: BUY (general) | Score=", signal.score, " | MACD=", DoubleToString(conditions.macd, 4),
+                          " | RSI=", DoubleToString(conditions.rsi, 1));
+                }
+                else if(conditions.macd < conditions.macdSignal && conditions.trendDirection <= 0) {
+                    signal.direction = SIGNAL_SELL;
+                    signal.isValid = true;
+                    signal.reason = "Metal: MACD bearish";
+                    Print("🔍 Metal: SELL (general) | Score=", signal.score, " | MACD=", DoubleToString(conditions.macd, 4),
+                          " | RSI=", DoubleToString(conditions.rsi, 1));
+                }
+            }
         }
         else {
             // Score too low - log why
@@ -516,6 +535,25 @@ public:
                     signal.isValid = true;
                     signal.reason = "Crypto: Volume breakout DOWN";
                     Print("🔍 Crypto: SELL (breakout) | Score=", signal.score, " | Volume=", DoubleToString(conditions.volumeSpike, 2));
+                }
+            }
+
+            // STRATEGY 4: General momentum (fallback when score is good but specific conditions not met)
+            else if(signal.score >= 30) {  // Only when score is strong
+                // Use MACD direction for trade bias
+                if(conditions.macd > conditions.macdSignal && conditions.trendDirection >= 0) {
+                    signal.direction = SIGNAL_BUY;
+                    signal.isValid = true;
+                    signal.reason = "Crypto: MACD bullish";
+                    Print("🔍 Crypto: BUY (general) | Score=", signal.score, " | MACD=", DoubleToString(conditions.macd, 4),
+                          " | RSI=", DoubleToString(conditions.rsi, 1));
+                }
+                else if(conditions.macd < conditions.macdSignal && conditions.trendDirection <= 0) {
+                    signal.direction = SIGNAL_SELL;
+                    signal.isValid = true;
+                    signal.reason = "Crypto: MACD bearish";
+                    Print("🔍 Crypto: SELL (general) | Score=", signal.score, " | MACD=", DoubleToString(conditions.macd, 4),
+                          " | RSI=", DoubleToString(conditions.rsi, 1));
                 }
             }
         }
