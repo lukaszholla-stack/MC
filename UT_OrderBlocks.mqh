@@ -143,8 +143,8 @@ public:
 
     // Order Block queries
     int             GetOrderBlockCount() { return m_obCount; }
-    SOrderBlock*    GetOrderBlock(int index);
-    SOrderBlock*    GetNearestOrderBlock(double price, ENUM_OB_TYPE type = OB_NONE);
+    bool            GetOrderBlock(int index, SOrderBlock &outOB);
+    bool            GetNearestOrderBlock(double price, SOrderBlock &outOB, ENUM_OB_TYPE type = OB_NONE);
     bool            IsPriceInOrderBlock(double price, int &obIndex);
     bool            IsPriceNearOrderBlock(double price, double thresholdPips, int &obIndex);
 
@@ -521,7 +521,7 @@ void COrderBlockDetector::RemoveOldOrderBlocks() {
 //+------------------------------------------------------------------+
 //| Get nearest order block to price                                 |
 //+------------------------------------------------------------------+
-SOrderBlock* COrderBlockDetector::GetNearestOrderBlock(double price, ENUM_OB_TYPE type = OB_NONE) {
+bool COrderBlockDetector::GetNearestOrderBlock(double price, SOrderBlock &outOB, ENUM_OB_TYPE type = OB_NONE) {
     double minDistance = DBL_MAX;
     int nearestIndex = -1;
 
@@ -529,7 +529,7 @@ SOrderBlock* COrderBlockDetector::GetNearestOrderBlock(double price, ENUM_OB_TYP
         if(m_orderBlocks[i].status != OB_ACTIVE) continue;
         if(type != OB_NONE && m_orderBlocks[i].type != type) continue;
 
-        double obMidPrice = (m_orderBlocks[i].priceHigh + m_orderBlocks[i].priceLow) / 2;
+        double obMidPrice = (m_orderBlocks[i].priceHigh + m_orderBlocks[i].priceLow) / 2.0;
         double distance = MathAbs(price - obMidPrice);
 
         if(distance < minDistance) {
@@ -539,10 +539,11 @@ SOrderBlock* COrderBlockDetector::GetNearestOrderBlock(double price, ENUM_OB_TYP
     }
 
     if(nearestIndex >= 0) {
-        return &m_orderBlocks[nearestIndex];
+        outOB = m_orderBlocks[nearestIndex];
+        return true;
     }
 
-    return NULL;
+    return false;
 }
 
 //+------------------------------------------------------------------+
@@ -582,9 +583,10 @@ void COrderBlockDetector::PrintOrderBlocks() {
 //+------------------------------------------------------------------+
 //| Access order block by index                                      |
 //+------------------------------------------------------------------+
-SOrderBlock* COrderBlockDetector::GetOrderBlock(int index) {
-    if(index < 0 || index >= m_obCount) return NULL;
-    return &m_orderBlocks[index];
+bool COrderBlockDetector::GetOrderBlock(int index, SOrderBlock &outOB) {
+    if(index < 0 || index >= m_obCount) return false;
+    outOB = m_orderBlocks[index];
+    return true;
 }
 
 //+------------------------------------------------------------------+

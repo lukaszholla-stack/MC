@@ -775,8 +775,8 @@ public:
 
         if((*m_orderBlockDetector).IsPriceInOrderBlock(currentPrice, obIndex)) {
             conditions.isInOrderBlock = true;
-            SOrderBlock* ob = (*m_orderBlockDetector).GetOrderBlock(obIndex);
-            if(ob != NULL) {
+            SOrderBlock ob;
+            if((*m_orderBlockDetector).GetOrderBlock(obIndex, ob)) {
                 conditions.hasOrderBlock = true;
                 conditions.orderBlockPrice = (ob.priceHigh + ob.priceLow) / 2.0;
                 conditions.orderBlockType = (ob.type == OB_BULLISH) ? 1 : -1;
@@ -785,8 +785,8 @@ public:
         }
         else {
             // Check if nearby OB exists
-            SOrderBlock* nearestOB = (*m_orderBlockDetector).GetNearestOrderBlock(currentPrice);
-            if(nearestOB != NULL) {
+            SOrderBlock nearestOB;
+            if((*m_orderBlockDetector).GetNearestOrderBlock(currentPrice, nearestOB)) {
                 double distance = MathAbs(currentPrice - ((nearestOB.priceHigh + nearestOB.priceLow) / 2.0));
                 double atr = conditions.volatility;
                 if(distance < atr * 2.0) {  // Within 2 ATR
@@ -805,22 +805,26 @@ public:
         // Check for FVG above (for LONG TP) or below (for SHORT TP)
         if(conditions.trendDirection > 0) {
             // Bullish - look for FVG above for TP
-            SFairValueGap* fvg = (*m_fvgDetector).GetNearestFVG(currentPrice, FVG_BULLISH);
-            if(fvg != NULL && fvg.gapMid > currentPrice) {
-                conditions.hasFairValueGap = true;
-                conditions.fvgTargetPrice = fvg.gapMid;
-                conditions.fvgType = 1;
-                conditions.fvgSize = fvg.gapSize;
+            SFairValueGap fvg;
+            if((*m_fvgDetector).GetNearestFVG(currentPrice, fvg, FVG_BULLISH)) {
+                if(fvg.gapMid > currentPrice) {
+                    conditions.hasFairValueGap = true;
+                    conditions.fvgTargetPrice = fvg.gapMid;
+                    conditions.fvgType = 1;
+                    conditions.fvgSize = fvg.gapSize;
+                }
             }
         }
         else if(conditions.trendDirection < 0) {
             // Bearish - look for FVG below for TP
-            SFairValueGap* fvg = (*m_fvgDetector).GetNearestFVG(currentPrice, FVG_BEARISH);
-            if(fvg != NULL && fvg.gapMid < currentPrice) {
-                conditions.hasFairValueGap = true;
-                conditions.fvgTargetPrice = fvg.gapMid;
-                conditions.fvgType = -1;
-                conditions.fvgSize = fvg.gapSize;
+            SFairValueGap fvg;
+            if((*m_fvgDetector).GetNearestFVG(currentPrice, fvg, FVG_BEARISH)) {
+                if(fvg.gapMid < currentPrice) {
+                    conditions.hasFairValueGap = true;
+                    conditions.fvgTargetPrice = fvg.gapMid;
+                    conditions.fvgType = -1;
+                    conditions.fvgSize = fvg.gapSize;
+                }
             }
         }
 

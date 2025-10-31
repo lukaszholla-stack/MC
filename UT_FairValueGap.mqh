@@ -120,8 +120,8 @@ public:
 
     // FVG queries
     int             GetFVGCount() { return m_fvgCount; }
-    SFairValueGap*  GetFVG(int index);
-    SFairValueGap*  GetNearestFVG(double price, ENUM_FVG_TYPE type = FVG_NONE);
+    bool            GetFVG(int index, SFairValueGap &outFVG);
+    bool            GetNearestFVG(double price, SFairValueGap &outFVG, ENUM_FVG_TYPE type = FVG_NONE);
     bool            IsPriceInFVG(double price, int &fvgIndex);
     bool            HasUnfilledFVG(ENUM_FVG_TYPE type, double &targetPrice);
 
@@ -416,7 +416,7 @@ void CFairValueGapDetector::RemoveOldFVGs() {
 //+------------------------------------------------------------------+
 //| Get nearest FVG to price                                          |
 //+------------------------------------------------------------------+
-SFairValueGap* CFairValueGapDetector::GetNearestFVG(double price, ENUM_FVG_TYPE type = FVG_NONE) {
+bool CFairValueGapDetector::GetNearestFVG(double price, SFairValueGap &outFVG, ENUM_FVG_TYPE type = FVG_NONE) {
     double minDistance = DBL_MAX;
     int nearestIndex = -1;
 
@@ -433,10 +433,11 @@ SFairValueGap* CFairValueGapDetector::GetNearestFVG(double price, ENUM_FVG_TYPE 
     }
 
     if(nearestIndex >= 0) {
-        return &m_fairValueGaps[nearestIndex];
+        outFVG = m_fairValueGaps[nearestIndex];
+        return true;
     }
 
-    return NULL;
+    return false;
 }
 
 //+------------------------------------------------------------------+
@@ -534,9 +535,10 @@ void CFairValueGapDetector::PrintFVGs() {
 //+------------------------------------------------------------------+
 //| Get FVG by index                                                  |
 //+------------------------------------------------------------------+
-SFairValueGap* CFairValueGapDetector::GetFVG(int index) {
-    if(index < 0 || index >= m_fvgCount) return NULL;
-    return &m_fairValueGaps[index];
+bool CFairValueGapDetector::GetFVG(int index, SFairValueGap &outFVG) {
+    if(index < 0 || index >= m_fvgCount) return false;
+    outFVG = m_fairValueGaps[index];
+    return true;
 }
 
 //+------------------------------------------------------------------+

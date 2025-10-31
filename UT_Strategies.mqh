@@ -1321,7 +1321,6 @@ public:
         double slDistance = MathAbs(entry - sl);
 
         // Check if we have FVG target
-        MarketConditions* conditions = NULL;
         if(m_marketAnalyzer != NULL) {
             MarketConditions currentConditions = (*m_marketAnalyzer).Analyze();
 
