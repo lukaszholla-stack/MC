@@ -1112,4 +1112,274 @@ public:
     }
 };
 
+//+------------------------------------------------------------------+
+//|                   SMART MONEY STRATEGY CLASS (NEW)               |
+//|                         Based on ICT Concepts                    |
+//+------------------------------------------------------------------+
+class CSmartMoneyStrategy : public CBaseStrategy {
+private:
+    int m_minScore;
+    bool m_requireBOS;
+    bool m_requireFVG;
+    double m_minRiskReward;
+
+public:
+    CSmartMoneyStrategy() {
+        m_name = "Smart Money (Order Blocks + FVG)";
+        m_type = STRATEGY_ADAPTIVE;
+        m_minScore = 45;
+        m_requireBOS = false;      // BOS optional by default
+        m_requireFVG = false;      // FVG optional by default
+        m_minRiskReward = 2.5;
+    }
+
+    void SetMinScore(int score) { m_minScore = score; }
+    void SetRequireBOS(bool require) { m_requireBOS = require; }
+    void SetRequireFVG(bool require) { m_requireFVG = require; }
+    void SetMinRiskReward(double rr) { m_minRiskReward = rr; }
+
+    virtual bool Initialize() override {
+        m_initialized = true;
+        Print("✅ Smart Money Strategy initialized (min score: ", m_minScore, ")");
+        return true;
+    }
+
+    virtual TradeSignal CheckSignal(MarketConditions& conditions) override {
+        TradeSignal signal;
+        signal.Reset();
+        signal.source = STRATEGY_ADAPTIVE;
+
+        // === SCORING SYSTEM (0-100 points) ===
+
+        int score = 0;
+
+        // 1. Order Block Quality (0-25 points)
+        if(conditions.hasOrderBlock) {
+            score += (int)(conditions.orderBlockStrength * 25.0);
+        }
+
+        // 2. Trend Alignment (0-20 points)
+        if(conditions.trendDirection != 0) {
+            // Check if OB type matches trend
+            if(conditions.trendDirection == conditions.orderBlockType) {
+                score += 20;
+            }
+            // Check multi-timeframe alignment
+            if(MathAbs(conditions.trendAlignment) >= 2) {
+                score += 5; // Bonus for strong MTF alignment
+            }
+        }
+
+        // 3. Fair Value Gap (0-15 points)
+        if(conditions.hasFairValueGap) {
+            score += 15;
+            // Bonus if FVG is large
+            if(conditions.fvgSize > 10.0) {
+                score += 5;
+            }
+        }
+
+        // 4. BOS Confirmation (0-15 points)
+        if(conditions.hasBOS) {
+            score += 15;
+        }
+
+        // 5. Market Structure Trend (0-10 points)
+        if(conditions.marketStructureTrend == conditions.trendDirection) {
+            score += 10;
+        }
+
+        // 6. CHoCH Warning (0-10 points) - potential reversal
+        if(conditions.hasCHoCH) {
+            score += 10;
+        }
+
+        // 7. ADX Strength (0-10 points)
+        if(conditions.adx > 30) {
+            score += 10;
+        }
+        else if(conditions.adx > 25) {
+            score += 5;
+        }
+
+        // 8. Volume Confirmation (0-5 points)
+        if(conditions.volumeSpike > 1.5) {
+            score += 5;
+        }
+
+        signal.score = score;
+
+        // === ENTRY LOGIC ===
+
+        // Minimum score required
+        if(score < m_minScore) {
+            signal.direction = SIGNAL_NONE;
+            signal.isValid = false;
+            signal.reason = "Smart Money: Score too low (" + IntegerToString(score) + " < " + IntegerToString(m_minScore) + ")";
+            return signal;
+        }
+
+        // Check optional requirements
+        if(m_requireBOS && !conditions.hasBOS) {
+            signal.direction = SIGNAL_NONE;
+            signal.isValid = false;
+            signal.reason = "Smart Money: BOS required but not detected";
+            return signal;
+        }
+
+        if(m_requireFVG && !conditions.hasFairValueGap) {
+            signal.direction = SIGNAL_NONE;
+            signal.isValid = false;
+            signal.reason = "Smart Money: FVG required but not detected";
+            return signal;
+        }
+
+        // Must have Order Block
+        if(!conditions.hasOrderBlock) {
+            signal.direction = SIGNAL_NONE;
+            signal.isValid = false;
+            signal.reason = "Smart Money: No Order Block detected";
+            return signal;
+        }
+
+        // Must be in or near Order Block
+        if(!conditions.isInOrderBlock && conditions.orderBlockStrength < 0.5) {
+            signal.direction = SIGNAL_NONE;
+            signal.isValid = false;
+            signal.reason = "Smart Money: Price not in OB zone";
+            return signal;
+        }
+
+        // === DETERMINE DIRECTION ===
+
+        // LONG Setup:
+        // - Bullish OB (orderBlockType = 1)
+        // - Uptrend or neutral (trendDirection >= 0)
+        // - Optional: BOS bullish, FVG above
+        if(conditions.orderBlockType == 1 && conditions.trendDirection >= 0) {
+            signal.direction = SIGNAL_BUY;
+            signal.isValid = true;
+            signal.reason = "Smart Money: Bullish OB + ";
+
+            if(conditions.hasBOS) signal.reason += "BOS + ";
+            if(conditions.hasFairValueGap) signal.reason += "FVG ";
+
+            signal.reason += "(Score: " + IntegerToString(score) + ")";
+        }
+        // SHORT Setup:
+        // - Bearish OB (orderBlockType = -1)
+        // - Downtrend or neutral (trendDirection <= 0)
+        // - Optional: BOS bearish, FVG below
+        else if(conditions.orderBlockType == -1 && conditions.trendDirection <= 0) {
+            signal.direction = SIGNAL_SELL;
+            signal.isValid = true;
+            signal.reason = "Smart Money: Bearish OB + ";
+
+            if(conditions.hasBOS) signal.reason += "BOS + ";
+            if(conditions.hasFairValueGap) signal.reason += "FVG ";
+
+            signal.reason += "(Score: " + IntegerToString(score) + ")";
+        }
+        else {
+            signal.direction = SIGNAL_NONE;
+            signal.isValid = false;
+            signal.reason = "Smart Money: OB type vs trend mismatch";
+        }
+
+        // Populate scoring breakdown
+        signal.trendScore = (conditions.trendDirection != 0 && conditions.trendDirection == conditions.orderBlockType) ? 20 : 0;
+        signal.momentumScore = (int)(conditions.orderBlockStrength * 25.0);
+        signal.volumeScore = (conditions.volumeSpike > 1.5) ? 5 : 0;
+
+        return signal;
+    }
+
+    virtual double CalculateStopLoss(ENUM_SIGNAL_DIRECTION direction, double entry, double atr) override {
+        // SL placement: Just beyond the Order Block
+
+        double slDistance = 0;
+
+        if(direction == SIGNAL_BUY) {
+            // For LONG: SL below Order Block low
+            // Use 1.2x OB height or 1.5x ATR, whichever is smaller
+            double obHeight = atr * 0.8;  // Assume OB is ~0.8 ATR
+            slDistance = MathMin(obHeight * 1.2, atr * 1.5);
+            return entry - slDistance;
+        }
+        else if(direction == SIGNAL_SELL) {
+            // For SHORT: SL above Order Block high
+            double obHeight = atr * 0.8;
+            slDistance = MathMin(obHeight * 1.2, atr * 1.5);
+            return entry + slDistance;
+        }
+
+        // Fallback
+        return (direction == SIGNAL_BUY) ? entry - atr * 1.5 : entry + atr * 1.5;
+    }
+
+    virtual double CalculateTakeProfit(ENUM_SIGNAL_DIRECTION direction, double entry, double sl) override {
+        double slDistance = MathAbs(entry - sl);
+
+        // Check if we have FVG target
+        MarketConditions* conditions = NULL;
+        if(m_marketAnalyzer != NULL) {
+            MarketConditions currentConditions = (*m_marketAnalyzer).Analyze();
+
+            if(currentConditions.hasFairValueGap) {
+                double fvgTarget = currentConditions.fvgTargetPrice;
+
+                // Calculate R:R to FVG
+                double distanceToFVG = MathAbs(entry - fvgTarget);
+                double riskReward = distanceToFVG / slDistance;
+
+                // If FVG provides good R:R, use it
+                if(riskReward >= m_minRiskReward) {
+                    if(direction == SIGNAL_BUY && fvgTarget > entry) {
+                        return fvgTarget;
+                    }
+                    else if(direction == SIGNAL_SELL && fvgTarget < entry) {
+                        return fvgTarget;
+                    }
+                }
+            }
+        }
+
+        // Fallback: Use adaptive R:R (2.5-4.0x based on score)
+        double rrMultiplier = m_minRiskReward;
+
+        // Increase TP for higher scores
+        if(m_marketAnalyzer != NULL) {
+            MarketConditions currentConditions = (*m_marketAnalyzer).Analyze();
+
+            // High score = higher TP
+            int score = 0;
+            if(currentConditions.hasOrderBlock) score += (int)(currentConditions.orderBlockStrength * 25.0);
+            if(currentConditions.hasBOS) score += 15;
+            if(currentConditions.hasFairValueGap) score += 15;
+
+            if(score >= 70) {
+                rrMultiplier = 4.0;  // Very strong setup
+            }
+            else if(score >= 60) {
+                rrMultiplier = 3.5;
+            }
+            else if(score >= 50) {
+                rrMultiplier = 3.0;
+            }
+            else {
+                rrMultiplier = 2.5;
+            }
+        }
+
+        double tpDistance = slDistance * rrMultiplier;
+
+        if(direction == SIGNAL_BUY) {
+            return entry + tpDistance;
+        }
+        else {
+            return entry - tpDistance;
+        }
+    }
+};
+
 #endif // UT_STRATEGIES_MQH

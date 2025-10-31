@@ -10,6 +10,9 @@
 #define UT_ANALYSIS_MQH
 
 #include "UT_Core.mqh"
+#include "UT_OrderBlocks.mqh"
+#include "UT_FairValueGap.mqh"
+#include "UT_MarketStructure.mqh"
 
 //+------------------------------------------------------------------+
 //|              TECHNICAL ANALYSIS CLASS                             |
@@ -612,6 +615,11 @@ private:
     CVolumeAnalysis* m_volumeAnalysis;
     CMultiTimeframe* m_mtfAnalysis;
 
+    // Smart Money Concepts (NEW)
+    COrderBlockDetector* m_orderBlockDetector;
+    CFairValueGapDetector* m_fvgDetector;
+    CMarketStructure* m_marketStructure;
+
     bool m_initialized;
 
 public:
@@ -620,6 +628,12 @@ public:
         m_divergenceDetector = new CDivergenceDetector(m_techAnalysis);
         m_volumeAnalysis = new CVolumeAnalysis();
         m_mtfAnalysis = new CMultiTimeframe();
+
+        // Smart Money Concepts
+        m_orderBlockDetector = new COrderBlockDetector();
+        m_fvgDetector = new CFairValueGapDetector();
+        m_marketStructure = new CMarketStructure();
+
         m_initialized = false;
     }
 
@@ -628,6 +642,11 @@ public:
         delete m_divergenceDetector;
         delete m_volumeAnalysis;
         delete m_mtfAnalysis;
+
+        // Smart Money Concepts
+        delete m_orderBlockDetector;
+        delete m_fvgDetector;
+        delete m_marketStructure;
     }
 
     bool Initialize() {
@@ -646,8 +665,24 @@ public:
             return false;
         }
 
+        // Initialize Smart Money Concepts
+        if(!(*m_orderBlockDetector).Initialize(_Symbol, PERIOD_CURRENT, 10)) {
+            Print("ERROR: Order Block Detector initialization failed");
+            return false;
+        }
+
+        if(!(*m_fvgDetector).Initialize(_Symbol, PERIOD_CURRENT, 20)) {
+            Print("ERROR: Fair Value Gap Detector initialization failed");
+            return false;
+        }
+
+        if(!(*m_marketStructure).Initialize(_Symbol, PERIOD_CURRENT, 3)) {
+            Print("ERROR: Market Structure initialization failed");
+            return false;
+        }
+
         m_initialized = true;
-        Print("✅ Market Analyzer initialized successfully");
+        Print("✅ Market Analyzer initialized successfully (with Smart Money)");
         return true;
     }
 
@@ -730,6 +765,79 @@ public:
 
         // Session
         conditions.session = GetCurrentSession();
+
+        // === SMART MONEY CONCEPTS ANALYSIS (NEW) ===
+
+        // Order Blocks
+        (*m_orderBlockDetector).ScanForOrderBlocks();
+        double currentPrice = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+        int obIndex = -1;
+
+        if((*m_orderBlockDetector).IsPriceInOrderBlock(currentPrice, obIndex)) {
+            conditions.isInOrderBlock = true;
+            SOrderBlock* ob = (*m_orderBlockDetector).GetOrderBlock(obIndex);
+            if(ob != NULL) {
+                conditions.hasOrderBlock = true;
+                conditions.orderBlockPrice = (ob.priceHigh + ob.priceLow) / 2.0;
+                conditions.orderBlockType = (ob.type == OB_BULLISH) ? 1 : -1;
+                conditions.orderBlockStrength = ob.strength;
+            }
+        }
+        else {
+            // Check if nearby OB exists
+            SOrderBlock* nearestOB = (*m_orderBlockDetector).GetNearestOrderBlock(currentPrice);
+            if(nearestOB != NULL) {
+                double distance = MathAbs(currentPrice - ((nearestOB.priceHigh + nearestOB.priceLow) / 2.0));
+                double atr = conditions.volatility;
+                if(distance < atr * 2.0) {  // Within 2 ATR
+                    conditions.hasOrderBlock = true;
+                    conditions.orderBlockPrice = (nearestOB.priceHigh + nearestOB.priceLow) / 2.0;
+                    conditions.orderBlockType = (nearestOB.type == OB_BULLISH) ? 1 : -1;
+                    conditions.orderBlockStrength = nearestOB.strength;
+                }
+            }
+        }
+
+        // Fair Value Gaps
+        (*m_fvgDetector).ScanForFairValueGaps();
+        (*m_fvgDetector).UpdateFVGs(currentPrice);
+
+        // Check for FVG above (for LONG TP) or below (for SHORT TP)
+        if(conditions.trendDirection > 0) {
+            // Bullish - look for FVG above for TP
+            SFairValueGap* fvg = (*m_fvgDetector).GetNearestFVG(currentPrice, FVG_BULLISH);
+            if(fvg != NULL && fvg.gapMid > currentPrice) {
+                conditions.hasFairValueGap = true;
+                conditions.fvgTargetPrice = fvg.gapMid;
+                conditions.fvgType = 1;
+                conditions.fvgSize = fvg.gapSize;
+            }
+        }
+        else if(conditions.trendDirection < 0) {
+            // Bearish - look for FVG below for TP
+            SFairValueGap* fvg = (*m_fvgDetector).GetNearestFVG(currentPrice, FVG_BEARISH);
+            if(fvg != NULL && fvg.gapMid < currentPrice) {
+                conditions.hasFairValueGap = true;
+                conditions.fvgTargetPrice = fvg.gapMid;
+                conditions.fvgType = -1;
+                conditions.fvgSize = fvg.gapSize;
+            }
+        }
+
+        // Market Structure
+        (*m_marketStructure).Analyze();
+        ENUM_STRUCTURE_EVENT structureEvent = (*m_marketStructure).GetLastEvent();
+
+        conditions.hasBOS = (structureEvent == STRUCTURE_BOS_BULLISH || structureEvent == STRUCTURE_BOS_BEARISH);
+        conditions.hasCHoCH = (structureEvent == STRUCTURE_CHOCH_BULLISH || structureEvent == STRUCTURE_CHOCH_BEARISH);
+
+        ENUM_MARKET_TREND msTrend = (*m_marketStructure).GetTrend();
+        conditions.marketStructureTrend = (int)msTrend;
+
+        SSwingPoint lastHigh = (*m_marketStructure).GetLastSwingHigh();
+        SSwingPoint lastLow = (*m_marketStructure).GetLastSwingLow();
+        conditions.lastSwingHigh = lastHigh.price;
+        conditions.lastSwingLow = lastLow.price;
 
         return conditions;
     }

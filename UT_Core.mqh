@@ -144,6 +144,24 @@ struct MarketConditions {
     string session;             // "Asian", "London", "NewYork", "Overlap"
     bool isBadTradingDay;       // NFP, holidays, extreme volatility
 
+    // Smart Money Concepts (NEW)
+    bool hasOrderBlock;         // Order Block detected nearby
+    bool isInOrderBlock;        // Price currently in OB
+    double orderBlockPrice;     // OB price level
+    int orderBlockType;         // 1=bullish, -1=bearish, 0=none
+    double orderBlockStrength;  // 0-1.0 (OB quality)
+
+    bool hasFairValueGap;       // FVG detected
+    double fvgTargetPrice;      // FVG price target (for TP)
+    int fvgType;                // 1=bullish, -1=bearish, 0=none
+    double fvgSize;             // FVG size in pips
+
+    bool hasBOS;                // Break of Structure detected
+    bool hasCHoCH;              // Change of Character detected
+    int marketStructureTrend;   // -1=bearish, 0=neutral, 1=bullish
+    double lastSwingHigh;       // Last swing high price
+    double lastSwingLow;        // Last swing low price
+
     void Reset() {
         phase = PHASE_RANGING;
         trendDirection = 0;
@@ -185,6 +203,22 @@ struct MarketConditions {
         volumeBreakout = false;
         session = "";
         isBadTradingDay = false;
+
+        // Smart Money Concepts
+        hasOrderBlock = false;
+        isInOrderBlock = false;
+        orderBlockPrice = 0;
+        orderBlockType = 0;
+        orderBlockStrength = 0;
+        hasFairValueGap = false;
+        fvgTargetPrice = 0;
+        fvgType = 0;
+        fvgSize = 0;
+        hasBOS = false;
+        hasCHoCH = false;
+        marketStructureTrend = 0;
+        lastSwingHigh = 0;
+        lastSwingLow = 0;
     }
 };
 
