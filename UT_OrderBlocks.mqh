@@ -173,7 +173,7 @@ COrderBlockDetector::COrderBlockDetector() {
     m_timeframe = PERIOD_CURRENT;
     m_maxOrderBlocks = 10;
     m_lookbackBars = 50;
-    m_minImpulseATR = 0.5;        // 50% of ATR
+    m_minImpulseATR = 0.4;        // 40% of ATR (was 0.5 - too strict for crypto M15)
     m_minCandleBodyRatio = 0.5;   // 50% body (not too much wick)
     m_maxTouches = 3;
     m_expiryBars = 100;
@@ -367,7 +367,7 @@ bool COrderBlockDetector::IsImpulsiveCandle(int bar, double atr, ENUM_OB_TYPE &i
 
     // Impulse criteria:
     // 1. Range > m_minImpulseATR * ATR
-    // 2. Body > 60% of range (not too much wick)
+    // 2. Body > 55% of range (not too much wick)
     double minRange = m_minImpulseATR * atr;
 
     if(candleRange < minRange) {
@@ -381,7 +381,7 @@ bool COrderBlockDetector::IsImpulsiveCandle(int bar, double atr, ENUM_OB_TYPE &i
         return false;
     }
 
-    if(bodyRatio < 0.6) {
+    if(bodyRatio < 0.55) {
         return false;
     }
 
