@@ -9,9 +9,6 @@
 #ifndef UT_ORDERBLOCKS_MQH
 #define UT_ORDERBLOCKS_MQH
 
-// Compilation check - you should see this in compilation output
-#pragma message("✅ UT_OrderBlocks.mqh LOADED - Version 2024-11-01 FIXED")
-
 //+------------------------------------------------------------------+
 //|                         ENUMERATIONS                             |
 //+------------------------------------------------------------------+
