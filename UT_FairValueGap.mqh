@@ -416,7 +416,7 @@ void CFairValueGapDetector::RemoveOldFVGs() {
 //+------------------------------------------------------------------+
 //| Get nearest FVG to price                                          |
 //+------------------------------------------------------------------+
-bool CFairValueGapDetector::GetNearestFVG(double price, SFairValueGap &outFVG, ENUM_FVG_TYPE type = FVG_NONE) {
+bool CFairValueGapDetector::GetNearestFVG(double price, SFairValueGap &outFVG, ENUM_FVG_TYPE type) {
     double minDistance = DBL_MAX;
     int nearestIndex = -1;
 

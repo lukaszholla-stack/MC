@@ -521,7 +521,7 @@ void COrderBlockDetector::RemoveOldOrderBlocks() {
 //+------------------------------------------------------------------+
 //| Get nearest order block to price                                 |
 //+------------------------------------------------------------------+
-bool COrderBlockDetector::GetNearestOrderBlock(double price, SOrderBlock &outOB, ENUM_OB_TYPE type = OB_NONE) {
+bool COrderBlockDetector::GetNearestOrderBlock(double price, SOrderBlock &outOB, ENUM_OB_TYPE type) {
     double minDistance = DBL_MAX;
     int nearestIndex = -1;
 
