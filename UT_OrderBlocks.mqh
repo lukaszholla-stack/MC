@@ -295,6 +295,13 @@ bool COrderBlockDetector::DetectOrderBlock(int startBar) {
         return false;
     }
 
+    // DIAGNOSTIC: Log successful impulse detection
+    static int impulsePassCount = 0;
+    if(impulsePassCount < 3) {
+        Print("✅ OB: Bar ", startBar-1, " passed impulse test, type=", EnumToString(impulseType));
+        impulsePassCount++;
+    }
+
     // Check if current candle (startBar) is opposite color
     bool isOBCandle = false;
     if(impulseType == OB_BULLISH && IsBearishCandle(startBar)) {
@@ -304,11 +311,26 @@ bool COrderBlockDetector::DetectOrderBlock(int startBar) {
         isOBCandle = true;
     }
 
-    if(!isOBCandle) return false;
+    if(!isOBCandle) {
+        static int oppositeFailCount = 0;
+        if(oppositeFailCount < 3) {
+            string obCandleType = IsBullishCandle(startBar) ? "bullish" : "bearish";
+            Print("⚠️ OB: Bar ", startBar, " not opposite color (impulse=", EnumToString(impulseType),
+                  ", OB candle=", obCandleType, ")");
+            oppositeFailCount++;
+        }
+        return false;
+    }
 
     // Check candle quality (body ratio)
     double bodyRatio = GetCandleBodyRatio(startBar);
     if(bodyRatio < m_minCandleBodyRatio) {
+        static int bodyRatioFailCount = 0;
+        if(bodyRatioFailCount < 3) {
+            Print("⚠️ OB: Bar ", startBar, " failed body ratio: ", DoubleToString(bodyRatio, 2),
+                  " < ", DoubleToString(m_minCandleBodyRatio, 2));
+            bodyRatioFailCount++;
+        }
         return false;
     }
 
