@@ -264,6 +264,16 @@ bool COrderBlockDetector::ScanForOrderBlocks() {
     double currentPrice = SymbolInfoDouble(m_symbol, SYMBOL_BID);
     UpdateOrderBlockStatus(currentPrice);
 
+    // Diagnostic logging (once per minute)
+    static datetime lastDiagLog = 0;
+    if(TimeCurrent() - lastDiagLog > 60) {
+        int barsScanned = MathMin(m_lookbackBars, Bars(m_symbol, m_timeframe) - 3) - 2;
+        Print("🔍 OB Scan: ", m_obCount, " OBs found, scanned ", barsScanned,
+              " bars, ATR: ", DoubleToString(currentATR, 2),
+              ", Min impulse: ", DoubleToString(m_minImpulseATR * currentATR, 2));
+        lastDiagLog = TimeCurrent();
+    }
+
     return true;
 }
 
@@ -353,12 +363,21 @@ bool COrderBlockDetector::DetectOrderBlock(int startBar) {
 bool COrderBlockDetector::IsImpulsiveCandle(int bar, double atr, ENUM_OB_TYPE &impulseType) {
     double candleRange = CalculateCandleRange(bar);
     double bodySize = CalculateCandleBody(bar);
-    double bodyRatio = bodySize / candleRange;
+    double bodyRatio = (candleRange > 0) ? (bodySize / candleRange) : 0;
 
     // Impulse criteria:
     // 1. Range > m_minImpulseATR * ATR
     // 2. Body > 60% of range (not too much wick)
-    if(candleRange < m_minImpulseATR * atr) {
+    double minRange = m_minImpulseATR * atr;
+
+    if(candleRange < minRange) {
+        // Diagnostic (log first few failures)
+        static int failureCount = 0;
+        if(failureCount < 3) {
+            Print("⚠️ OB: Bar ", bar, " failed impulse test: range=", DoubleToString(candleRange, 2),
+                  " < min=", DoubleToString(minRange, 2), " (ATR=", DoubleToString(atr, 2), ")");
+            failureCount++;
+        }
         return false;
     }
 
