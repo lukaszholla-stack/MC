@@ -798,9 +798,15 @@ public:
             }
         }
 
+        // Draw Order Blocks on chart
+        (*m_orderBlockDetector).DrawOrderBlocks();
+
         // Fair Value Gaps
         (*m_fvgDetector).ScanForFairValueGaps();
         (*m_fvgDetector).UpdateFVGs(currentPrice);
+
+        // Draw FVGs on chart
+        (*m_fvgDetector).DrawFVGs();
 
         // Check for FVG above (for LONG TP) or below (for SHORT TP)
         if(conditions.trendDirection > 0) {

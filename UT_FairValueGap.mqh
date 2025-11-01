@@ -135,6 +135,10 @@ public:
 
     // Debug
     void            PrintFVGs();
+
+    // Visualization
+    void            DrawFVGs();
+    void            RemoveDrawings();
 };
 
 //+------------------------------------------------------------------+
@@ -554,6 +558,114 @@ void CFairValueGapDetector::UpdateFVGs(double currentPrice) {
 //+------------------------------------------------------------------+
 void CFairValueGapDetector::ClearFVGs() {
     m_fvgCount = 0;
+    RemoveDrawings();
+}
+
+//+------------------------------------------------------------------+
+//| Remove graphical drawings                                        |
+//+------------------------------------------------------------------+
+void CFairValueGapDetector::RemoveDrawings() {
+    ObjectsDeleteAll(0, "FVG_");
+}
+
+//+------------------------------------------------------------------+
+//| Draw Fair Value Gaps on chart                                    |
+//+------------------------------------------------------------------+
+void CFairValueGapDetector::DrawFVGs() {
+    // Remove old drawings first
+    ObjectsDeleteAll(0, "FVG_");
+
+    // Draw each FVG
+    for(int i = 0; i < m_fvgCount; i++) {
+        SFairValueGap fvg = m_fairValueGaps[i];
+
+        // Create unique object name
+        string objName = "FVG_" + IntegerToString(i) + "_" + TimeToString(fvg.time, TIME_DATE|TIME_MINUTES);
+
+        // Determine color based on type and status
+        color rectColor;
+        int rectWidth = 1;
+        ENUM_LINE_STYLE rectStyle = STYLE_SOLID;
+        int transparency = 80; // More transparent than OBs
+
+        if(fvg.type == FVG_BULLISH) {
+            if(fvg.status == FVG_UNFILLED) {
+                rectColor = clrLimeGreen;    // Green for unfilled bullish FVG
+                rectWidth = 1;
+            }
+            else if(fvg.status == FVG_PARTIALLY_FILLED) {
+                rectColor = clrYellowGreen;  // Yellow-green for partial
+                rectStyle = STYLE_DOT;
+            }
+            else { // FULLY_FILLED
+                rectColor = clrGray;         // Gray for filled
+                rectStyle = STYLE_DOT;
+                transparency = 90;
+            }
+        }
+        else { // FVG_BEARISH
+            if(fvg.status == FVG_UNFILLED) {
+                rectColor = clrOrange;       // Orange for unfilled bearish FVG
+                rectWidth = 1;
+            }
+            else if(fvg.status == FVG_PARTIALLY_FILLED) {
+                rectColor = clrGold;         // Gold for partial
+                rectStyle = STYLE_DOT;
+            }
+            else { // FULLY_FILLED
+                rectColor = clrGray;         // Gray for filled
+                rectStyle = STYLE_DOT;
+                transparency = 90;
+            }
+        }
+
+        // Calculate end time (show for next 50 bars)
+        datetime endTime = fvg.time + PeriodSeconds(m_timeframe) * 50;
+
+        // Create rectangle for the gap
+        if(ObjectCreate(0, objName, OBJ_RECTANGLE, 0, fvg.time, fvg.gapHigh, endTime, fvg.gapLow)) {
+            ObjectSetInteger(0, objName, OBJPROP_COLOR, rectColor);
+            ObjectSetInteger(0, objName, OBJPROP_STYLE, rectStyle);
+            ObjectSetInteger(0, objName, OBJPROP_WIDTH, rectWidth);
+            ObjectSetInteger(0, objName, OBJPROP_FILL, true);
+            ObjectSetInteger(0, objName, OBJPROP_BACK, true);
+            ObjectSetInteger(0, objName, OBJPROP_SELECTABLE, false);
+            ObjectSetInteger(0, objName, OBJPROP_SELECTED, false);
+            ObjectSetInteger(0, objName, OBJPROP_HIDDEN, true);
+        }
+
+        // Draw midline (target price)
+        string midlineName = objName + "_Mid";
+        if(ObjectCreate(0, midlineName, OBJ_TREND, 0, fvg.time, fvg.gapMid, endTime, fvg.gapMid)) {
+            ObjectSetInteger(0, midlineName, OBJPROP_COLOR, rectColor);
+            ObjectSetInteger(0, midlineName, OBJPROP_STYLE, STYLE_DASH);
+            ObjectSetInteger(0, midlineName, OBJPROP_WIDTH, 1);
+            ObjectSetInteger(0, midlineName, OBJPROP_RAY_RIGHT, false);
+            ObjectSetInteger(0, midlineName, OBJPROP_SELECTABLE, false);
+            ObjectSetInteger(0, midlineName, OBJPROP_SELECTED, false);
+            ObjectSetInteger(0, midlineName, OBJPROP_HIDDEN, true);
+            ObjectSetInteger(0, midlineName, OBJPROP_BACK, true);
+        }
+
+        // Add text label with info
+        string labelName = objName + "_Label";
+        string labelText = (fvg.type == FVG_BULLISH ? "🟩 FVG↑" : "🟧 FVG↓") +
+                          " | " + DoubleToString(fvg.gapSize, 0) + " pips" +
+                          " | " + DoubleToString(fvg.filledPercent, 0) + "%";
+
+        if(ObjectCreate(0, labelName, OBJ_TEXT, 0, fvg.time, fvg.gapHigh)) {
+            ObjectSetString(0, labelName, OBJPROP_TEXT, labelText);
+            ObjectSetInteger(0, labelName, OBJPROP_COLOR, rectColor);
+            ObjectSetInteger(0, labelName, OBJPROP_FONTSIZE, 7);
+            ObjectSetInteger(0, labelName, OBJPROP_ANCHOR, ANCHOR_LEFT_UPPER);
+            ObjectSetInteger(0, labelName, OBJPROP_SELECTABLE, false);
+            ObjectSetInteger(0, labelName, OBJPROP_SELECTED, false);
+            ObjectSetInteger(0, labelName, OBJPROP_HIDDEN, true);
+            ObjectSetInteger(0, labelName, OBJPROP_BACK, false);
+        }
+    }
+
+    ChartRedraw(0);
 }
 
 #endif // UT_FAIRVALUEGAP_MQH

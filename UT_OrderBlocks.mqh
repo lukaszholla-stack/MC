@@ -646,4 +646,91 @@ void COrderBlockDetector::RemoveDrawings() {
     ObjectsDeleteAll(0, "OB_");
 }
 
+//+------------------------------------------------------------------+
+//| Draw Order Blocks on chart                                       |
+//+------------------------------------------------------------------+
+void COrderBlockDetector::DrawOrderBlocks() {
+    // Remove old drawings first
+    ObjectsDeleteAll(0, "OB_");
+
+    // Draw each active Order Block
+    for(int i = 0; i < m_obCount; i++) {
+        SOrderBlock ob = m_orderBlocks[i];
+
+        // Skip expired OBs
+        if(ob.status == OB_EXPIRED) continue;
+
+        // Create unique object name
+        string objName = "OB_" + IntegerToString(i) + "_" + TimeToString(ob.time, TIME_DATE|TIME_MINUTES);
+
+        // Determine color based on type and status
+        color rectColor;
+        int rectWidth = 1;
+        ENUM_LINE_STYLE rectStyle = STYLE_SOLID;
+
+        if(ob.type == OB_BULLISH) {
+            if(ob.status == OB_ACTIVE) {
+                rectColor = clrDodgerBlue;  // Blue for active bullish OB
+                rectWidth = 2;
+            }
+            else if(ob.status == OB_MITIGATED) {
+                rectColor = clrLightBlue;   // Light blue for mitigated
+                rectStyle = STYLE_DOT;
+            }
+            else if(ob.status == OB_BREACHED) {
+                rectColor = clrGray;        // Gray for breached
+                rectStyle = STYLE_DOT;
+            }
+        }
+        else { // OB_BEARISH
+            if(ob.status == OB_ACTIVE) {
+                rectColor = clrOrangeRed;   // Red for active bearish OB
+                rectWidth = 2;
+            }
+            else if(ob.status == OB_MITIGATED) {
+                rectColor = clrLightCoral;  // Light red for mitigated
+                rectStyle = STYLE_DOT;
+            }
+            else if(ob.status == OB_BREACHED) {
+                rectColor = clrGray;        // Gray for breached
+                rectStyle = STYLE_DOT;
+            }
+        }
+
+        // Calculate end time (show for next 100 bars or until breached)
+        datetime endTime = ob.time + PeriodSeconds(m_timeframe) * 100;
+
+        // Create rectangle
+        if(ObjectCreate(0, objName, OBJ_RECTANGLE, 0, ob.time, ob.priceHigh, endTime, ob.priceLow)) {
+            ObjectSetInteger(0, objName, OBJPROP_COLOR, rectColor);
+            ObjectSetInteger(0, objName, OBJPROP_STYLE, rectStyle);
+            ObjectSetInteger(0, objName, OBJPROP_WIDTH, rectWidth);
+            ObjectSetInteger(0, objName, OBJPROP_FILL, true);
+            ObjectSetInteger(0, objName, OBJPROP_BACK, true);
+            ObjectSetInteger(0, objName, OBJPROP_SELECTABLE, false);
+            ObjectSetInteger(0, objName, OBJPROP_SELECTED, false);
+            ObjectSetInteger(0, objName, OBJPROP_HIDDEN, true);
+        }
+
+        // Add text label with info
+        string labelName = objName + "_Label";
+        string labelText = (ob.type == OB_BULLISH ? "🟦 OB Bull" : "🟥 OB Bear") +
+                          " | Str: " + DoubleToString(ob.strength, 2) +
+                          " | " + EnumToString(ob.status);
+
+        if(ObjectCreate(0, labelName, OBJ_TEXT, 0, ob.time, ob.priceHigh)) {
+            ObjectSetString(0, labelName, OBJPROP_TEXT, labelText);
+            ObjectSetInteger(0, labelName, OBJPROP_COLOR, rectColor);
+            ObjectSetInteger(0, labelName, OBJPROP_FONTSIZE, 8);
+            ObjectSetInteger(0, labelName, OBJPROP_ANCHOR, ANCHOR_LEFT_LOWER);
+            ObjectSetInteger(0, labelName, OBJPROP_SELECTABLE, false);
+            ObjectSetInteger(0, labelName, OBJPROP_SELECTED, false);
+            ObjectSetInteger(0, labelName, OBJPROP_HIDDEN, true);
+            ObjectSetInteger(0, labelName, OBJPROP_BACK, false);
+        }
+    }
+
+    ChartRedraw(0);
+}
+
 #endif // UT_ORDERBLOCKS_MQH
