@@ -9,6 +9,9 @@
 #ifndef UT_FAIRVALUEGAP_MQH
 #define UT_FAIRVALUEGAP_MQH
 
+// Compilation check
+#pragma message("✅ UT_FairValueGap.mqh LOADED - Version 2024-11-01 FIXED")
+
 //+------------------------------------------------------------------+
 //|                         ENUMERATIONS                             |
 //+------------------------------------------------------------------+

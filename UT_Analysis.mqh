@@ -9,6 +9,8 @@
 #ifndef UT_ANALYSIS_MQH
 #define UT_ANALYSIS_MQH
 
+#pragma message("✅ UT_Analysis.mqh LOADED - Version 2024-11-01 FIXED")
+
 #include "UT_Core.mqh"
 #include "UT_OrderBlocks.mqh"
 #include "UT_FairValueGap.mqh"
